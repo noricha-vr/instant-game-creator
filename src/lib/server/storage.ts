@@ -1,12 +1,12 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { env } from '$env/dynamic/private';
-import type { GalleryGame, GameRecord } from '$lib/types';
+import type { AppRecord, GalleryApp } from '$lib/types';
 
-const filePath = resolve(env.LOCAL_GAMES_FILE || '.local-data/games.json');
+const filePath = resolve(env.LOCAL_APPS_FILE || '.local-data/apps.json');
 
-type GameStore = {
-  games: GameRecord[];
+type AppStore = {
+  apps: AppRecord[];
 };
 
 async function ensureStore(): Promise<void> {
@@ -14,52 +14,51 @@ async function ensureStore(): Promise<void> {
   try {
     await readFile(filePath, 'utf-8');
   } catch {
-    await writeFile(filePath, JSON.stringify({ games: [] }, null, 2), 'utf-8');
+    await writeFile(filePath, JSON.stringify({ apps: [] }, null, 2), 'utf-8');
   }
 }
 
-async function readStore(): Promise<GameStore> {
+async function readStore(): Promise<AppStore> {
   await ensureStore();
   const raw = await readFile(filePath, 'utf-8');
-  const parsed = JSON.parse(raw) as Partial<GameStore>;
-  return { games: Array.isArray(parsed.games) ? parsed.games : [] };
+  const parsed = JSON.parse(raw) as Partial<AppStore>;
+  return { apps: Array.isArray(parsed.apps) ? parsed.apps : [] };
 }
 
-async function writeStore(store: GameStore): Promise<void> {
+async function writeStore(store: AppStore): Promise<void> {
   await ensureStore();
   await writeFile(filePath, JSON.stringify(store, null, 2), 'utf-8');
 }
 
-export async function saveGame(game: GameRecord): Promise<GameRecord> {
+export async function saveApp(app: AppRecord): Promise<AppRecord> {
   const store = await readStore();
-  const withoutSame = store.games.filter((item) => item.id !== game.id);
-  withoutSame.unshift(game);
-  await writeStore({ games: withoutSame.slice(0, 300) });
-  return game;
+  const withoutSame = store.apps.filter((item) => item.id !== app.id);
+  withoutSame.unshift(app);
+  await writeStore({ apps: withoutSame.slice(0, 300) });
+  return app;
 }
 
-export async function listGames(limit = 24): Promise<GalleryGame[]> {
+export async function listApps(limit = 24): Promise<GalleryApp[]> {
   const store = await readStore();
-  return store.games.slice(0, limit).map((game) => ({
-    id: game.id,
-    slug: game.slug,
-    title: game.title,
-    summary: game.summary,
-    keyword: game.keyword,
-    elements: game.elements,
-    createdAt: game.createdAt,
-    sharePath: game.sharePath
+  return store.apps.slice(0, limit).map((app) => ({
+    id: app.id,
+    slug: app.slug,
+    title: app.title,
+    summary: app.summary,
+    idea: app.idea,
+    createdAt: app.createdAt,
+    sharePath: app.sharePath
   }));
 }
 
-export async function getGame(idOrSlug: string): Promise<GameRecord | null> {
+export async function getApp(idOrSlug: string): Promise<AppRecord | null> {
   const store = await readStore();
-  return store.games.find((game) => game.id === idOrSlug || game.slug === idOrSlug) ?? null;
+  return store.apps.find((app) => app.id === idOrSlug || app.slug === idOrSlug) ?? null;
 }
 
-export function createGameId(): string {
+export function createAppId(): string {
   const random = crypto.randomUUID().split('-')[0];
-  return `g_${Date.now().toString(36)}_${random}`;
+  return `a_${Date.now().toString(36)}_${random}`;
 }
 
 export function slugify(input: string, fallback: string): string {

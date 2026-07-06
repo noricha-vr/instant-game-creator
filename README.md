@@ -1,27 +1,27 @@
-# 今すぐシミュレーションクリエイター / Instant Simulation Creator
+# 今すぐアプリクリエイター / Instant App Creator
 
-キーワードと3カテゴリの要素を選ぶだけで、子ども向けの眺めて楽しいシミュレーションを即生成して観察できるローカル試作品です。
+作りたいものを自由入力すると、LLM が自己完結の単一 HTML アプリを即実装し、sandbox 付き iframe で実行するローカル試作品です。
 
 ![トップページ](docs/images/screenshot-top.png)
 
 ## できること
 
-- キーワード例チップから選択
-- 主役・うごき・さわるとの3カテゴリから1つずつ選択
-- Cerebras API で「仕様 + コード」を一発生成
-- APIキー未設定時はモック生成で即動作確認
-- 生成コードを Web Worker + Canvas で実行（開始時に説明を約3秒表示）
-- タップ / クリックで粒子追加や風などの介入
-- リセットボタンで Worker を再起動
+- 200字以内のアイデアを自由入力
+- 任意で「ふくらませ方」カードを3〜4件生成
+- カードを選ぶ、またはスキップしてそのまま生成
+- Cerebras API で単一 HTML 文書を生成
+- APIキー未設定時はおみくじアプリのモックで即動作確認
+- 保存前に HTML 構造・禁止トークン・script構文を検査
+- CSP meta を強制注入してから保存
+- `<iframe sandbox="allow-scripts" srcdoc>` で即実行
 - ローカル JSON に保存、`/g/:slug` の共有URL、ギャラリー表示
-- 生成失敗時の自動1回リトライ
 
 ## 技術構成
 
 - SvelteKit / Svelte 5
-- Canvas API + Web Worker（生成コードのサンドボックス実行）
+- sandbox iframe + srcdoc
 - SvelteKit server endpoints
-- ローカル保存: `.local-data/games.json`
+- ローカル保存: `.local-data/apps.json`
 - Cerebras API: サーバー側から `https://api.cerebras.ai/v1/chat/completions` を呼び出し
 
 ## セットアップ
@@ -45,45 +45,51 @@ CEREBRAS_MOCK=0
 ```
 
 - API キーを入れない場合は自動的にモック生成になります（強制モックは `CEREBRAS_MOCK=1`）
-- serverless API で使えるモデルは `/v1/models` で確認できます
-- GLM 系は reasoning がコンテキスト上限を圧迫して本文が切れるため、既定で `reasoning_effort: none` を送信します（`CEREBRAS_REASONING_EFFORT` で変更可）
+- 方向カード生成は temperature 0.8 / max_tokens 800 / timeout 10秒 / リトライなし
+- アプリ生成は max_tokens 20000 / timeout 60秒 / 最大2回試行
+- GLM 系は reasoning が本文を圧迫しやすいため、既定で `reasoning_effort: none` を送信します（`CEREBRAS_REASONING_EFFORT` で変更可）
 
 ## ディレクトリ構成
 
 ```text
-src/routes/+page.svelte                    トップ画面・生成UI・ギャラリー
+src/routes/+page.svelte                    トップ画面・方向カード・ギャラリー
 src/routes/g/[id]/+page.svelte             共有表示画面
-src/routes/api/elements/+server.ts         3カテゴリ候補API
-src/routes/api/generate/+server.ts         生成API
-src/routes/api/games/+server.ts            ギャラリーAPI
-src/lib/components/WorkerCanvasGame.svelte Web Worker + Canvas 実行ランナー
+src/routes/api/directions/+server.ts       方向カードAPI
+src/routes/api/generate/+server.ts         HTML生成API
+src/routes/api/games/+server.ts            一覧API（既存パスを継続利用）
+src/lib/components/HtmlAppFrame.svelte     sandbox iframe 実行ランナー
 src/lib/server/cerebras.ts                 Cerebras API 呼び出し
-src/lib/server/prompt.ts                   生成プロンプト（仕様の正本）
-src/lib/server/validateGenerated.ts        生成物の検証（構文 + 実行時チェック）
-src/lib/server/mockGame.ts                 APIキーなし用のモック生成
+src/lib/server/prompt.ts                   生成プロンプト
+src/lib/server/validateGeneratedHtml.ts    生成HTMLの検証 + CSP注入
+src/lib/server/mockApp.ts                  APIキーなし用のモック生成
 src/lib/server/storage.ts                  ローカルJSON保存
-src/lib/server/elementPool.ts              要素候補プール
 ```
 
 ## 設計判断
 
-### 1. 生成コードは Web Worker で実行、Svelte コンポーネントは保存のみ
+### 1. 生成物は単一 HTML 文書に限定
 
-LLM が返した Svelte コンポーネントをその場でコンパイル・実行する設計は重く壊れやすいため、実行本体は `workerScript`（描画コマンドを返す純粋な JS）に限定し、共通ランナーが Canvas に描画します。`svelteComponent` は将来のビルド・検査用に保存だけします。
+LLM が返す成果物を `title`, `summary`, `howToUse`, `html` の4キーに固定し、実行対象は `html` だけにします。ビルドや外部ファイル保存を挟まず、生成後すぐに iframe で表示できます。
 
-### 2. 保存前に実行時チェックで検証
+### 2. 安全境界は sandbox iframe
 
-構文チェックだけでは「tick でクラッシュ」「フレームが変化しない」「タップ介入で落ちる」等の観察できないコードを弾けないため、`node:vm` で start + 180 tick を実際に実行します。120〜130 tick では pointer.down を送り、介入時もクラッシュしないことを確認してから保存します。不合格は自動リトライに乗ります。
-（注意: `node:vm` はセキュリティ境界ではありません。ローカル試作前提であり、公開時は隔離実行への置き換えが必要です）
+実行時は `<iframe sandbox="allow-scripts" srcdoc>` を使い、`allow-same-origin` を付けません。生成HTMLは opaque origin で動くため、親ページの DOM・Cookie・Storage から切り離されます。
 
-### 3. DB は SQLite ではなくローカル JSON
+### 3. 保存前に CSP を強制注入
 
-体験検証が目的のため、差し替えが簡単な JSON 保存にしています。Cloudflare 移行時は `src/lib/server/storage.ts` を D1/R2 実装に差し替えます（詳細: `docs/cloudflare-migration.md`）。
+`injectCsp()` は既存の CSP meta を除去してから、以下の CSP を `<head>` 直後へ注入します。
+
+```text
+default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'
+```
+
+### 4. 検証は品質フィルタ
+
+`validateGeneratedHtml.ts` は JSON抽出、4キー検証、HTML構造検査、禁止トークン検査、`<script>` ブロックの構文検査を行います。実行スモークは false positive を避けるため行わず、安全性は sandbox と CSP に寄せます。
 
 ## 次にやると良いこと
 
-- 生成結果の自動スクリーンショット・ギャラリー用サムネイル
-- 失敗ログ保存・生成プロンプトのABテスト
-- Worker の実行時間・描画命令数の制限強化
-- スマホでの操作性テスト
+- 共有ページから追加指示で作り直すリミックス導線
+- 生成失敗ログとプロンプト改善用の集計
+- iframe 内の外部リクエスト監視を含むブラウザQA
 - Cloudflare D1/R2 移行

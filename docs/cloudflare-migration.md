@@ -5,7 +5,7 @@
 ## 1. Adapter変更
 
 ```bash
-npm i -D @sveltejs/adapter-cloudflare wrangler
+bun add -d @sveltejs/adapter-cloudflare wrangler
 ```
 
 `svelte.config.js` を変更します。
@@ -27,34 +27,32 @@ export default config;
 ## 2. D1設計
 
 ```sql
-CREATE TABLE games (
+CREATE TABLE apps (
   id TEXT PRIMARY KEY,
   slug TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
   summary TEXT NOT NULL,
-  keyword TEXT,
-  elements_json TEXT NOT NULL,
+  idea TEXT NOT NULL,
+  direction_json TEXT,
   instruction TEXT,
-  controls_json TEXT NOT NULL,
-  worker_script_key TEXT NOT NULL,
-  svelte_component_key TEXT,
+  how_to_use_json TEXT NOT NULL,
+  html_key TEXT NOT NULL,
   engine TEXT NOT NULL,
   attempts INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_games_created_at ON games(created_at DESC);
+CREATE INDEX idx_apps_created_at ON apps(created_at DESC);
 ```
 
 ## 3. R2設計
 
-R2には大きくなりやすい生成コードを保存します。
+R2には大きくなりやすい生成HTMLを保存します。
 
 ```text
-r2://generated-games/{id}/worker.js
-r2://generated-games/{id}/component.svelte
-r2://generated-games/{id}/thumbnail.png
+r2://generated-apps/{id}/index.html
+r2://generated-apps/{id}/thumbnail.png
 ```
 
 ## 4. 環境変数
@@ -70,13 +68,13 @@ wrangler secret put CEREBRAS_MODEL
 
 Cloudflareでは以下に差し替えます。
 
-- `saveGame`: D1にメタデータ、R2にコード保存
-- `listGames`: D1から一覧取得
-- `getGame`: D1 + R2から復元
+- `saveApp`: D1にメタデータ、R2にHTML保存
+- `listApps`: D1から一覧取得
+- `getApp`: D1 + R2から復元
 
 ## 6. 注意点
 
-- WorkerでAI生成コードを動かすため、CSPと検証は強める
+- 生成HTMLは保存前にCSP注入と禁止トークン検査を通す
 - 公開ギャラリーに出す前にNGワード・暴力表現の軽いフィルタを入れる
-- 生成結果のサムネイルを作るなら、ブラウザ側でCanvasをPNG化して保存する
+- サムネイルを作るなら、ブラウザ側でiframeを撮影する仕組みを検討する
 - ログインなし公開にするなら、レート制限が必須

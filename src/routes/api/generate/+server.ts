@@ -1,20 +1,14 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import type { ElementKind, GenerateRequest, SelectedElement } from '$lib/types';
-import { generateGameWithCerebras } from '$lib/server/cerebras';
-import { createGameId, saveGame, slugify } from '$lib/server/storage';
+import type { DirectionCard, GenerateRequest } from '$lib/types';
+import { generateAppWithCerebras } from '$lib/server/cerebras';
+import { createAppId, saveApp, slugify } from '$lib/server/storage';
 
-const requiredKinds: ElementKind[] = ['subject', 'dynamics', 'touch'];
-
-function isElementKind(value: unknown): value is ElementKind {
-  return value === 'subject' || value === 'dynamics' || value === 'touch';
-}
-
-function normalizeElement(value: unknown): SelectedElement | null {
-  if (!value || typeof value !== 'object') return null;
+function normalizeDirection(value: unknown): Pick<DirectionCard, 'label' | 'description'> | undefined {
+  if (!value || typeof value !== 'object') return undefined;
   const item = value as Record<string, unknown>;
   const label = typeof item.label === 'string' ? item.label.trim().slice(0, 40) : '';
-  if (!label || !isElementKind(item.kind)) return null;
-  return { kind: item.kind, label };
+  const description = typeof item.description === 'string' ? item.description.trim().slice(0, 120) : '';
+  return label && description ? { label, description } : undefined;
 }
 
 function normalizeBody(body: unknown): GenerateRequest {
@@ -22,25 +16,15 @@ function normalizeBody(body: unknown): GenerateRequest {
     throw new Error('body must be an object');
   }
   const data = body as Record<string, unknown>;
-  const keyword = typeof data.keyword === 'string' ? data.keyword.trim().slice(0, 80) : '';
+  const idea = typeof data.idea === 'string' ? data.idea.trim().slice(0, 200) : '';
   const instruction = typeof data.instruction === 'string' ? data.instruction.trim().slice(0, 1000) : '';
-  const elements = Array.isArray(data.elements)
-    ? data.elements.map(normalizeElement).filter((item): item is SelectedElement => item !== null)
-    : [];
+  const direction = normalizeDirection(data.direction);
 
-  const byKind = new Map<ElementKind, SelectedElement>();
-  for (const element of elements) {
-    if (byKind.has(element.kind)) {
-      throw new Error('主役・うごき・さわるとの各カテゴリから1つずつ選んでください');
-    }
-    byKind.set(element.kind, element);
+  if (!idea) {
+    throw new Error('作りたいものを入力してください');
   }
 
-  if (requiredKinds.some((kind) => !byKind.has(kind))) {
-    throw new Error('主役・うごき・さわるとの各カテゴリから1つずつ選んでください');
-  }
-
-  return { keyword, instruction, elements: requiredKinds.map((kind) => byKind.get(kind) as SelectedElement) };
+  return { idea, instruction, direction };
 }
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -56,7 +40,7 @@ export const POST: RequestHandler = async ({ request }) => {
     for (let i = 0; i < 2; i += 1) {
       attempts += 1;
       try {
-        result = await generateGameWithCerebras(input, lastError || undefined);
+        result = await generateAppWithCerebras(input, lastError || undefined);
         break;
       } catch (error) {
         lastError = error instanceof Error ? error.message : 'unknown generation error';
@@ -67,34 +51,34 @@ export const POST: RequestHandler = async ({ request }) => {
       return json(
         {
           ok: false,
-          error: '生成に失敗しました。自動リトライ後も有効なシミュレーションを作れませんでした。',
+          error: '生成に失敗しました。自動リトライ後も有効なアプリを作れませんでした。',
           detail: lastError
         },
         { status: 502 }
       );
     }
 
-    const id = createGameId();
-    const slugBase = slugify(`${input.keyword}-${result.payload.title}`, id);
+    const id = createAppId();
+    const slugBase = slugify(`${input.idea}-${result.payload.title}`, id);
     const slug = `${slugBase}-${id.split('_').at(-1)}`;
     const now = new Date().toISOString();
-    const game = await saveGame({
+    const app = await saveApp({
       id,
       slug,
-      keyword: input.keyword,
-      elements: input.elements,
+      idea: input.idea,
+      direction: input.direction ?? null,
       instruction: input.instruction,
       createdAt: now,
       updatedAt: now,
       attempts,
-      engine: 'canvas-worker-sim-v1',
+      engine: 'html-v1',
       sharePath: `/g/${slug}`,
       ...result.payload
     });
 
     return json({
       ok: true,
-      game,
+      app,
       meta: {
         elapsedMs: Date.now() - startedAt,
         attempts,

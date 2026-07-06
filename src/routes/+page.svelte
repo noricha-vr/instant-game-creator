@@ -1,241 +1,219 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import WorkerCanvasGame from '$lib/components/WorkerCanvasGame.svelte';
-  import { elementKindLabel, type ElementGroup, type ElementKind, type GalleryGame, type GameElement, type GameRecord } from '$lib/types';
+  import type { DirectionCard, GalleryApp } from '$lib/types';
 
-  let keyword = '';
-  let groups: ElementGroup[] = [];
-  let selected: Partial<Record<ElementKind, GameElement>> = {};
-  let gallery: GalleryGame[] = [];
-  let generatedGame: GameRecord | null = null;
-  let isLoadingElements = false;
-  let isGenerating = false;
+  type CreatorState = 'idle' | 'directions-loading' | 'directions' | 'generating' | 'error';
+
+  let idea = '';
+  let instruction = '';
+  let directions: DirectionCard[] = [];
+  let gallery: GalleryApp[] = [];
+  let state: CreatorState = 'idle';
   let errorMessage = '';
-  let generationNote = '';
+  let note = '';
 
-  const examples = ['メダカ', 'ホタル', 'アリの行列', '雪', '宇宙のちり', 'シャボン玉'];
-  const requiredKinds: ElementKind[] = ['subject', 'dynamics', 'touch'];
-  $: canGenerate = requiredKinds.every((kind) => Boolean(selected[kind]));
+  const examples = ['ポモドーロタイマー', '性格診断', '献立ルーレット', '読書メモ', '集中用の画面', '家計ミニ計算機'];
 
-  async function loadElements() {
-    isLoadingElements = true;
+  $: trimmedIdea = idea.trim();
+  $: canSubmit = trimmedIdea.length > 0 && state !== 'directions-loading' && state !== 'generating';
+
+  function setExample(value: string) {
+    idea = value;
+    directions = [];
+    state = 'idle';
     errorMessage = '';
-    try {
-      const response = await fetch(`/api/elements?keyword=${encodeURIComponent(keyword)}&perKind=8`);
-      const data = await response.json();
-      groups = data.groups ?? [];
-      selected = Object.fromEntries(
-        groups
-          .map((group) => [group.kind, group.elements[0]])
-          .filter((entry): entry is [ElementKind, GameElement] => Boolean(entry[1]))
-      ) as Partial<Record<ElementKind, GameElement>>;
-    } catch (error) {
-      errorMessage = error instanceof Error ? error.message : '候補の読み込みに失敗しました';
-    } finally {
-      isLoadingElements = false;
-    }
+    note = '';
   }
 
   async function loadGallery() {
     try {
       const response = await fetch('/api/games?limit=12');
       const data = await response.json();
-      gallery = data.games ?? [];
+      gallery = data.apps ?? [];
     } catch {
       gallery = [];
     }
   }
 
-  function chooseExample(value: string) {
-    keyword = value;
-    loadElements();
-  }
-
-  function selectElement(element: GameElement) {
-    selected = { ...selected, [element.kind]: element };
-  }
-
-  function selectedElements(): GameElement[] {
-    return requiredKinds.map((kind) => selected[kind]).filter((element): element is GameElement => Boolean(element));
-  }
-
-  async function generateGame() {
-    const elements = selectedElements();
-    if (elements.length !== 3) {
-      errorMessage = '主役・うごき・さわるとを1つずつ選んでください';
-      return;
-    }
-    isGenerating = true;
+  async function loadDirections() {
+    if (!canSubmit) return;
+    state = 'directions-loading';
     errorMessage = '';
-    generationNote = '仕様とコードをまとめて生成中...';
+    note = '';
+    try {
+      const response = await fetch('/api/directions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea: trimmedIdea })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'ふくらませ方を作れませんでした');
+      }
+      directions = data.directions ?? [];
+      state = directions.length > 0 ? 'directions' : 'idle';
+      note = data.usedMock ? 'モックの方向カードを表示しています。' : '';
+    } catch (error) {
+      state = 'error';
+      errorMessage = error instanceof Error ? error.message : 'ふくらませ方を作れませんでした';
+      note = 'カードなしでもそのまま作れます。';
+    }
+  }
+
+  async function generateApp(direction?: Pick<DirectionCard, 'label' | 'description'>) {
+    if (!canSubmit) return;
+    state = 'generating';
+    errorMessage = '';
+    note = direction ? `${direction.label}で実装中...` : 'そのまま実装中...';
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          keyword,
-          elements: elements.map((item) => ({ kind: item.kind, label: item.label }))
+          idea: trimmedIdea,
+          direction,
+          instruction: instruction.trim()
         })
       });
       const data = await response.json();
       if (!response.ok || !data.ok) {
         throw new Error(data.error || '生成に失敗しました');
       }
-      generatedGame = data.game;
-      generationNote = data.meta?.usedMock
-        ? 'APIキー未設定のためモック生成で起動しました。'
-        : `生成完了: ${data.meta?.elapsedMs ?? '-'}ms / ${data.meta?.attempts ?? 1}回`;
-      await loadGallery();
+      await goto(data.app.sharePath);
     } catch (error) {
+      state = 'error';
       errorMessage = error instanceof Error ? error.message : '生成に失敗しました';
-      generationNote = '';
-    } finally {
-      isGenerating = false;
+      note = '';
     }
-  }
-
-  async function shareCurrentGame() {
-    if (!generatedGame) return;
-    const url = new URL(generatedGame.sharePath, location.origin).toString();
-    try {
-      await navigator.clipboard.writeText(url);
-      generationNote = '共有URLをコピーしました。';
-    } catch {
-      generationNote = url;
-    }
-  }
-
-  function resetBuilder() {
-    generatedGame = null;
-    generationNote = '';
   }
 
   onMount(() => {
-    loadElements();
     loadGallery();
   });
 </script>
 
 <svelte:head>
-  <title>今すぐシミュレーションクリエイター</title>
-  <meta name="description" content="キーワードと3つの要素から、眺めて楽しい子ども向けシミュレーションを生成するローカル試作品。" />
+  <title>今すぐアプリクリエイター</title>
+  <meta name="description" content="作りたいものを入力すると、LLMが単一HTMLアプリとして即実装するローカル試作品。" />
 </svelte:head>
 
-{#if generatedGame}
-  <main class="generated-view">
-    <div class="generated-topbar">
-      <button type="button" class="ghost" on:click={resetBuilder}>← もう一度作る</button>
-      <div>
-        <strong>{generatedGame.title}</strong>
-        <span>{generatedGame.summary}</span>
+<main class="page">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Single HTML app factory</p>
+      <h1>今すぐアプリクリエイター</h1>
+      <p class="lead">作りたいものを一文で書くと、LLMがその場で使える小さなHTMLアプリに仕上げます。</p>
+      <div class="example-row" aria-label="入力例">
+        {#each examples as example}
+          <button type="button" class="chip" on:click={() => setExample(example)}>{example}</button>
+        {/each}
       </div>
-      <button type="button" on:click={shareCurrentGame}>共有URLコピー</button>
     </div>
-    <WorkerCanvasGame
-      title={generatedGame.title}
-      workerScript={generatedGame.workerScript}
-      controls={generatedGame.controls}
-    />
-    {#if generationNote}
-      <p class="floating-note">{generationNote}</p>
-    {/if}
-  </main>
-{:else}
-  <main class="page">
-    <section class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">Local prototype / Cerebras ready</p>
-        <h1>今すぐシミュレーションクリエイター</h1>
-        <p class="lead">キーワードを入れて、主役・うごき・さわるとを選ぶだけ。ずっと眺められるシミュレーションを生成します。</p>
-        <div class="example-row" aria-label="キーワード例">
-          {#each examples as example}
-            <button type="button" class="chip" on:click={() => chooseExample(example)}>{example}</button>
-          {/each}
-        </div>
-      </div>
 
-      <form class="creator" on:submit|preventDefault={generateGame}>
-        <div class="section-title">
-          <button type="button" class="link-button" on:click={loadElements} disabled={isLoadingElements}>
-            {isLoadingElements ? '更新中...' : '別候補に変更'}
-          </button>
-        </div>
+    <form class="creator" on:submit|preventDefault={() => generateApp()}>
+      <label>
+        <span>作りたいもの</span>
+        <textarea
+          bind:value={idea}
+          maxlength="200"
+          rows="5"
+          placeholder="例: 休憩時間に使う呼吸ガイド"
+          disabled={state === 'generating'}
+        ></textarea>
+      </label>
+      <div class="counter">{trimmedIdea.length}/200</div>
 
-        <div class="candidate-groups" aria-label="候補一覧">
-          {#each groups as group}
-            <section class="candidate-row" aria-labelledby={`candidate-${group.kind}`}>
-              <div class="row-heading">
-                <span id={`candidate-${group.kind}`}>{elementKindLabel[group.kind]}</span>
-              </div>
-              <div class="candidate-options">
-                {#each group.elements as element}
-                  <button
-                    type="button"
-                    class:selected={selected[element.kind]?.id === element.id}
-                    class="candidate-card"
-                    aria-pressed={selected[element.kind]?.id === element.id}
-                    on:click={() => selectElement(element)}
-                  >
-                    <strong>{element.label}</strong>
-                  </button>
-                {/each}
-              </div>
-            </section>
-          {/each}
-        </div>
+      <label>
+        <span>追加のこだわり</span>
+        <input
+          bind:value={instruction}
+          maxlength="160"
+          placeholder="任意: 落ち着いた色、子ども向け、記録欄つき など"
+          disabled={state === 'generating'}
+        />
+      </label>
 
-        {#if errorMessage}
-          <p class="error">{errorMessage}</p>
-        {/if}
-        {#if generationNote}
-          <p class="note">{generationNote}</p>
-        {/if}
-
-        <button type="submit" class="primary" disabled={isGenerating || !canGenerate}>
-          {isGenerating ? 'シミュレーション生成中...' : 'この3要素でシミュレーション生成'}
+      <div class="actions">
+        <button type="button" class="secondary" disabled={!canSubmit} on:click={loadDirections}>
+          {state === 'directions-loading' ? '考え中...' : 'ふくらませる'}
         </button>
-      </form>
-    </section>
-
-    <section class="gallery-section">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Gallery</p>
-          <h2>生成された作品</h2>
-        </div>
-        <button type="button" class="link-button" on:click={loadGallery}>更新</button>
+        <button type="submit" class="primary" disabled={!canSubmit}>
+          {state === 'generating' ? '実装中...' : 'そのまま作る'}
+        </button>
       </div>
 
-      {#if gallery.length === 0}
-        <div class="empty-gallery">まだ保存されたシミュレーションはありません。まず1つ作ってみてください。</div>
-      {:else}
-        <div class="gallery-grid">
-          {#each gallery as game}
-            <a href={game.sharePath} class="gallery-card">
-              <strong>{game.title}</strong>
-              <span>{game.summary}</span>
-              <small>{game.elements.map((element) => element.label).join(' / ')}</small>
-            </a>
-          {/each}
+      {#if state === 'directions'}
+        <section class="directions" aria-label="ふくらませ方">
+          <div class="section-heading">
+            <h2>ふくらませ方を選ぶ</h2>
+            <button type="button" class="link-button" on:click={() => generateApp()}>
+              スキップして作る
+            </button>
+          </div>
+          <div class="direction-grid">
+            {#each directions as direction}
+              <button type="button" class="direction-card" on:click={() => generateApp(direction)}>
+                <strong>{direction.label}</strong>
+                <span>{direction.description}</span>
+              </button>
+            {/each}
+          </div>
+        </section>
+      {/if}
+
+      {#if errorMessage}
+        <div class="error" role="alert">
+          <strong>処理できませんでした</strong>
+          <p>{errorMessage}</p>
+          <button type="button" class="link-button" on:click={() => generateApp()}>そのまま作る</button>
         </div>
       {/if}
-    </section>
-  </main>
-{/if}
+      {#if note}
+        <p class="note">{note}</p>
+      {/if}
+    </form>
+  </section>
+
+  <section class="gallery-section">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Gallery</p>
+        <h2>最近作ったアプリ</h2>
+      </div>
+      <button type="button" class="link-button" on:click={loadGallery}>更新</button>
+    </div>
+
+    {#if gallery.length === 0}
+      <div class="empty-gallery">まだ保存されたアプリはありません。まず1つ作ってみてください。</div>
+    {:else}
+      <div class="gallery-grid">
+        {#each gallery as app}
+          <a href={app.sharePath} class="gallery-card">
+            <strong>{app.title}</strong>
+            <span>{app.summary}</span>
+            <small>{app.idea}</small>
+          </a>
+        {/each}
+      </div>
+    {/if}
+  </section>
+</main>
 
 <style>
   :global(body) {
     margin: 0;
     background:
-      radial-gradient(circle at 10% 0%, rgba(128, 230, 213, 0.2), transparent 32rem),
-      radial-gradient(circle at 90% 10%, rgba(254, 234, 154, 0.22), transparent 34rem),
-      #101828;
-    color: #f9fafb;
-    font-family:
-      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      linear-gradient(120deg, rgba(191, 219, 254, 0.55), transparent 34rem),
+      linear-gradient(300deg, rgba(254, 215, 170, 0.55), transparent 32rem),
+      #f6f4ef;
+    color: #1d2939;
+    font-family: ui-sans-serif, "Hiragino Sans", "Yu Gothic", sans-serif;
   }
 
-  button {
+  button,
+  textarea,
+  input {
     font: inherit;
   }
 
@@ -243,186 +221,190 @@
     cursor: pointer;
   }
 
+  button:disabled,
+  textarea:disabled,
+  input:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
   .page {
-    width: min(1180px, calc(100% - 32px));
+    width: min(1120px, calc(100% - 32px));
     margin: 0 auto;
     padding: 34px 0 56px;
   }
 
   .hero {
     display: grid;
-    grid-template-columns: minmax(0, 0.85fr) minmax(380px, 1.15fr);
+    grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
     gap: 24px;
     align-items: start;
+  }
+
+  .hero-copy,
+  .creator,
+  .gallery-section {
+    border: 1px solid #ded8cb;
+    border-radius: 8px;
+    background: rgba(255, 250, 240, 0.9);
+    box-shadow: 0 18px 60px rgba(29, 41, 57, 0.12);
   }
 
   .hero-copy {
     position: sticky;
     top: 24px;
     padding: 30px;
-    border-radius: 32px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.2);
+  }
+
+  .creator {
+    display: grid;
+    gap: 16px;
+    padding: 22px;
   }
 
   .eyebrow {
     margin: 0 0 10px;
-    color: #80e6d5;
+    color: #b45309;
     font-weight: 900;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    font-size: 12px;
+    font-size: 0.875rem;
   }
 
   h1,
   h2 {
     margin: 0;
-    line-height: 1.05;
+    line-height: 1.08;
   }
 
   h1 {
-    font-size: clamp(42px, 7vw, 82px);
-    letter-spacing: -0.06em;
+    font-size: clamp(40px, 7vw, 76px);
   }
 
   h2 {
-    font-size: 30px;
-    letter-spacing: -0.04em;
+    font-size: 26px;
   }
 
   .lead {
-    color: #d0d5dd;
+    color: #475467;
     font-size: 18px;
     line-height: 1.8;
   }
 
-  .example-row {
+  .example-row,
+  .actions,
+  .section-heading {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .section-heading {
+    justify-content: space-between;
   }
 
   .chip,
-  .link-button,
-  .ghost {
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(255, 255, 255, 0.08);
-    color: #f9fafb;
+  .secondary,
+  .link-button {
+    border: 1px solid #c9c1b2;
+    background: #fffaf0;
+    color: #1d2939;
     border-radius: 999px;
-    padding: 9px 13px;
+    padding: 10px 14px;
     font-weight: 800;
   }
 
-  .creator {
+  label {
     display: grid;
-    gap: 18px;
-    padding: 22px;
-    border-radius: 32px;
-    background: rgba(255, 255, 255, 0.92);
-    color: #101828;
-    box-shadow: 0 22px 90px rgba(0, 0, 0, 0.28);
-  }
-
-  .section-heading,
-  .generated-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  /* 見出しラベルは削除済みのためボタンだけを右寄せする */
-  .section-title {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .creator .link-button {
-    color: #101828;
-    border-color: #d0d5dd;
-    background: #f2f4f7;
-  }
-
-  .candidate-groups {
-    display: grid;
-    gap: 14px;
-  }
-
-  .candidate-row {
-    display: grid;
-    grid-template-columns: 132px 1fr;
-    gap: 10px;
-    align-items: start;
-  }
-
-  .row-heading {
-    min-height: 48px;
-    display: flex;
-    align-items: center;
-    color: #344054;
+    gap: 8px;
     font-weight: 900;
   }
 
-  .candidate-options {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
+  textarea,
+  input {
+    width: 100%;
+    border: 1px solid #c9c1b2;
+    border-radius: 8px;
+    padding: 13px 14px;
+    background: #fffdf8;
+    color: #1d2939;
+    line-height: 1.6;
   }
 
-  .candidate-card {
-    min-height: 48px;
-    border: 1px solid #d0d5dd;
-    border-radius: 14px;
-    background: #fff;
-    color: #101828;
-    text-align: center;
-    overflow-wrap: anywhere;
+  textarea:focus,
+  input:focus,
+  button:focus-visible {
+    outline: 4px solid rgba(180, 83, 9, 0.22);
+    outline-offset: 2px;
   }
 
-  .candidate-card {
-    padding: 11px 10px;
-    transition:
-      transform 0.15s ease,
-      border-color 0.15s ease,
-      background 0.15s ease;
-  }
-
-  .candidate-card strong,
-  .gallery-card strong {
-    display: block;
-  }
-
-  .candidate-card:hover {
-    transform: translateY(-2px);
-  }
-
-  .candidate-card.selected {
-    border-color: #0e9384;
-    background: #ccfbef;
+  .counter {
+    margin-top: -10px;
+    color: #667085;
+    text-align: right;
+    font-weight: 800;
   }
 
   .primary {
+    flex: 1;
+    min-width: 180px;
     border: 0;
-    border-radius: 20px;
-    padding: 16px 18px;
-    background: #101828;
-    color: #f9fafb;
+    border-radius: 999px;
+    padding: 13px 18px;
+    background: #1d2939;
+    color: #fffaf0;
     font-weight: 900;
-    font-size: 17px;
   }
 
-  .primary:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
+  .secondary {
+    flex: 1;
+    min-width: 160px;
   }
 
+  .directions {
+    display: grid;
+    gap: 14px;
+    padding-top: 8px;
+  }
+
+  .direction-grid,
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .direction-card,
+  .gallery-card,
+  .empty-gallery,
   .error,
   .note {
-    margin: 0;
-    border-radius: 16px;
-    padding: 12px 14px;
-    font-weight: 800;
+    border: 1px solid #ded8cb;
+    border-radius: 8px;
+    padding: 15px;
+    background: #fffdf8;
+  }
+
+  .direction-card {
+    text-align: left;
+    color: #1d2939;
+  }
+
+  .direction-card strong,
+  .direction-card span,
+  .gallery-card strong,
+  .gallery-card span,
+  .gallery-card small {
+    display: block;
+  }
+
+  .direction-card span,
+  .gallery-card span,
+  .gallery-card small {
+    margin-top: 8px;
+    color: #667085;
+    line-height: 1.5;
   }
 
   .error {
@@ -430,107 +412,33 @@
     color: #b42318;
   }
 
+  .error p,
+  .note {
+    margin: 0;
+  }
+
   .note {
     background: #eff8ff;
     color: #175cd3;
+    font-weight: 800;
   }
 
   .gallery-section {
-    margin-top: 34px;
+    margin-top: 28px;
     padding: 22px;
-    border-radius: 32px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-  }
-
-  .gallery-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-top: 16px;
-  }
-
-  .gallery-card,
-  .empty-gallery {
-    border-radius: 22px;
-    padding: 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.12);
   }
 
   .gallery-card {
-    color: #f9fafb;
+    color: #1d2939;
     text-decoration: none;
-  }
-
-  .gallery-card span,
-  .gallery-card small {
-    display: block;
-    margin-top: 8px;
-    color: #d0d5dd;
-    line-height: 1.5;
-  }
-
-  .gallery-card small {
-    color: #98a2b3;
   }
 
   .empty-gallery {
     margin-top: 16px;
-    color: #d0d5dd;
+    color: #667085;
   }
 
-  .generated-view {
-    min-height: 100vh;
-    display: grid;
-    grid-template-rows: auto 1fr;
-    background: #101828;
-  }
-
-  .generated-topbar {
-    padding: 10px 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  }
-
-  .generated-topbar div {
-    min-width: 0;
-    display: grid;
-    gap: 2px;
-  }
-
-  .generated-topbar span {
-    color: #d0d5dd;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 12px;
-  }
-
-  .generated-topbar button:not(.ghost) {
-    border: 0;
-    border-radius: 999px;
-    padding: 9px 14px;
-    color: #101828;
-    background: #feea9a;
-    font-weight: 900;
-  }
-
-  .floating-note {
-    position: fixed;
-    left: 50%;
-    bottom: 18px;
-    transform: translateX(-50%);
-    margin: 0;
-    max-width: calc(100% - 28px);
-    padding: 10px 14px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.92);
-    color: #101828;
-    font-weight: 900;
-    box-shadow: 0 12px 42px rgba(0, 0, 0, 0.24);
-  }
-
-  @media (max-width: 980px) {
+  @media (max-width: 900px) {
     .hero {
       grid-template-columns: 1fr;
     }
@@ -540,35 +448,21 @@
     }
   }
 
-  @media (max-width: 700px) {
+  @media (max-width: 640px) {
     .page {
-      width: min(100% - 20px, 1180px);
+      width: min(100% - 20px, 1120px);
       padding: 16px 0 32px;
     }
 
     .hero-copy,
     .creator,
     .gallery-section {
-      border-radius: 24px;
       padding: 16px;
     }
 
-    .candidate-options {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
+    .direction-grid,
     .gallery-grid {
       grid-template-columns: 1fr;
-    }
-
-    .candidate-row {
-      grid-template-columns: 1fr;
-      gap: 6px;
-    }
-
-    .generated-topbar {
-      align-items: stretch;
-      flex-direction: column;
     }
   }
 </style>

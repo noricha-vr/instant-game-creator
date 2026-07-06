@@ -1,38 +1,33 @@
 <script lang="ts">
-  import WorkerCanvasGame from '$lib/components/WorkerCanvasGame.svelte';
+  import HtmlAppFrame from '$lib/components/HtmlAppFrame.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
 </script>
 
 <svelte:head>
-  <title>{data.game.title} | 今すぐシミュレーションクリエイター</title>
-  <meta name="description" content={data.game.summary} />
+  <title>{data.app.title} | 今すぐアプリクリエイター</title>
+  <meta name="description" content={data.app.summary} />
 </svelte:head>
 
 <main class="play-page">
   <div class="topbar">
-    <a href="/" class="home">← 新しく作る</a>
+    <a href="/" class="home">新しく作る</a>
     <div class="meta">
-      <strong>{data.game.title}</strong>
-      <span>{data.game.elements.map((element) => element.label).join(' / ')}</span>
+      <strong>{data.app.title}</strong>
+      <span>{data.app.idea}</span>
     </div>
   </div>
 
-  <WorkerCanvasGame
-    title={data.game.title}
-    workerScript={data.game.workerScript}
-    controls={data.game.controls}
-  />
+  <HtmlAppFrame title={data.app.title} html={data.app.html} howToUse={data.app.howToUse} />
 </main>
 
 <style>
   :global(body) {
     margin: 0;
-    background: #101828;
-    color: #f9fafb;
-    font-family:
-      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f6f4ef;
+    color: #1d2939;
+    font-family: ui-sans-serif, "Hiragino Sans", "Yu Gothic", sans-serif;
   }
 
   .play-page {
@@ -46,15 +41,15 @@
     align-items: center;
     gap: 16px;
     padding: 10px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(16, 24, 40, 0.9);
+    border-bottom: 1px solid #ded8cb;
+    background: rgba(255, 250, 240, 0.94);
     backdrop-filter: blur(10px);
   }
 
   .home {
-    color: #f9fafb;
+    color: #1d2939;
     text-decoration: none;
-    font-weight: 700;
+    font-weight: 800;
     white-space: nowrap;
   }
 
@@ -65,8 +60,8 @@
   }
 
   .meta span {
-    color: #d0d5dd;
-    font-size: 12px;
+    color: #667085;
+    font-size: 0.875rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

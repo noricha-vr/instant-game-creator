@@ -1,10 +1,10 @@
 import { error, json, type RequestHandler } from '@sveltejs/kit';
-import { getGame } from '$lib/server/storage';
+import { getApp } from '$lib/server/storage';
 
 export const GET: RequestHandler = async ({ params }) => {
-  const game = await getGame(params.id ?? '');
-  if (!game) {
-    throw error(404, 'simulation not found');
+  const app = await getApp(params.id ?? '');
+  if (!app) {
+    throw error(404, 'app not found');
   }
-  return json({ game });
+  return json({ app });
 };

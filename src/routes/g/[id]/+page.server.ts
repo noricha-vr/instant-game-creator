@@ -1,10 +1,10 @@
 import { error } from '@sveltejs/kit';
-import { getGame } from '$lib/server/storage';
+import { getApp } from '$lib/server/storage';
 
 export const load = async ({ params }) => {
-  const game = await getGame(params.id);
-  if (!game) {
-    throw error(404, 'simulation not found');
+  const app = await getApp(params.id);
+  if (!app) {
+    throw error(404, 'app not found');
   }
-  return { game };
+  return { app };
 };
