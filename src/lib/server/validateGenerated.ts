@@ -18,15 +18,55 @@ const forbiddenPatterns: Array<[RegExp, string]> = [
   [/for\s*\(\s*;\s*;\s*\)/i, 'for(;;) is not allowed']
 ];
 
+// LLM（特に GLM 系）は JSON 文字列の中に生の改行・タブを混ぜて返すことがあり、
+// そのままでは JSON.parse が Unterminated string で落ちるためエスケープして修復する
+function escapeControlCharsInStrings(json: string): string {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (const ch of json) {
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      } else if (ch === '\n') {
+        result += '\\n';
+        continue;
+      } else if (ch === '\r') {
+        result += '\\r';
+        continue;
+      } else if (ch === '\t') {
+        result += '\\t';
+        continue;
+      }
+    } else if (ch === '"') {
+      inString = true;
+    }
+    result += ch;
+  }
+  return result;
+}
+
+function parseJsonLenient(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return JSON.parse(escapeControlCharsInStrings(text));
+  }
+}
+
 export function extractJsonObject(text: string): unknown {
   const trimmed = text.trim();
   try {
-    return JSON.parse(trimmed);
+    return parseJsonLenient(trimmed);
   } catch {
     const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
     if (fenced?.[1]) {
       try {
-        return JSON.parse(fenced[1]);
+        return parseJsonLenient(fenced[1]);
       } catch {
         // fall through
       }
@@ -34,7 +74,7 @@ export function extractJsonObject(text: string): unknown {
     const first = trimmed.indexOf('{');
     const last = trimmed.lastIndexOf('}');
     if (first >= 0 && last > first) {
-      return JSON.parse(trimmed.slice(first, last + 1));
+      return parseJsonLenient(trimmed.slice(first, last + 1));
     }
     throw new Error('JSONオブジェクトを抽出できませんでした');
   }
@@ -192,6 +232,10 @@ export function simulateWorkerScript(workerScript: string): void {
   const timeLeft = lastFrame && typeof lastFrame === 'object' ? lastFrame.timeLeft : undefined;
   if (typeof timeLeft !== 'number' || Number.isNaN(timeLeft)) {
     throw new Error('workerScriptが実行時エラー: timeLeftが数値ではありません');
+  }
+  // timeLeft をミリ秒で返すコードは HUD 表示が壊れるため秒単位を強制する
+  if (timeLeft > SIMULATION_DURATION_SEC) {
+    throw new Error('workerScriptが実行時エラー: timeLeftが秒単位ではありません（ミリ秒で返している疑い）');
   }
 
   // 「3秒経っても画面が変化しない」は (a) 開始から一切動いていない、(b) 途中で止まった、の両方を含める。

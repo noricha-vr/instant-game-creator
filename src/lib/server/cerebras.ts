@@ -41,7 +41,9 @@ export async function generateGameWithCerebras(
     body: JSON.stringify({
       model,
       temperature: retryReason ? 0.35 : 0.55,
-      // gpt-oss-120b は reasoning トークンも max_tokens を消費するため、5000 では本文が途中で切れる
+      // reasoning トークンも max_tokens とコンテキスト上限（GLM serverless は合計8192）を消費し、
+      // 本文が途中で切れるため思考は無効化する（コード生成には不要）
+      reasoning_effort: env.CEREBRAS_REASONING_EFFORT || 'none',
       max_tokens: 20000,
       messages: [
         {
