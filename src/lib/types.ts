@@ -4,7 +4,7 @@ export type GameElement = {
   id: string;
   label: string;
   kind: ElementKind;
-  hint: string;
+  hint?: string;
 };
 
 export type GenerateRequest = {

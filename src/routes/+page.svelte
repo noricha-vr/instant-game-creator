@@ -4,7 +4,6 @@
   import type { GalleryGame, GameElement, GameRecord } from '$lib/types';
 
   let keyword = '';
-  let instruction = '';
   let candidates: GameElement[] = [];
   let selected: GameElement[] = [];
   let gallery: GalleryGame[] = [];
@@ -73,7 +72,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keyword,
-          instruction,
           elements: selected.map((item) => item.label)
         })
       });
@@ -171,7 +169,6 @@
             {#each selected as element}
               <button type="button" class="selected-card" on:click={() => toggleElement(element)}>
                 <strong>{element.label}</strong>
-                <small>{element.hint}</small>
               </button>
             {/each}
             {#if selected.length < 3}
@@ -190,19 +187,9 @@
             >
               <span>{element.kind}</span>
               <strong>{element.label}</strong>
-              <small>{element.hint}</small>
             </button>
           {/each}
         </div>
-
-        <label>
-          <span>追加指示</span>
-          <textarea
-            bind:value={instruction}
-            rows="4"
-            placeholder="例: 4歳でも分かるように。敵は怖すぎない。タップだけで遊べるように。"
-          ></textarea>
-        </label>
 
         {#if errorMessage}
           <p class="error">{errorMessage}</p>
@@ -256,8 +243,7 @@
   }
 
   button,
-  input,
-  textarea {
+  input {
     font: inherit;
   }
 
@@ -352,8 +338,7 @@
     font-weight: 900;
   }
 
-  input,
-  textarea {
+  input {
     width: 100%;
     box-sizing: border-box;
     border: 1px solid #d0d5dd;
@@ -364,8 +349,7 @@
     outline: none;
   }
 
-  input:focus,
-  textarea:focus {
+  input:focus {
     border-color: #12b76a;
     box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.14);
   }
@@ -408,7 +392,7 @@
 
   .selected-card,
   .empty-card {
-    min-height: 104px;
+    min-height: 62px;
     padding: 13px;
   }
 
@@ -416,14 +400,6 @@
   .candidate-card strong,
   .gallery-card strong {
     display: block;
-  }
-
-  .selected-card small,
-  .candidate-card small {
-    display: block;
-    margin-top: 6px;
-    color: #667085;
-    line-height: 1.5;
   }
 
   .empty-card {
@@ -440,7 +416,7 @@
   }
 
   .candidate-card {
-    min-height: 118px;
+    min-height: 68px;
     padding: 13px;
     transition:
       transform 0.15s ease,
