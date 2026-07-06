@@ -23,6 +23,8 @@
   let isRunning = $state(false);
   const keys = new Set<string>();
   const pointer = { x: 0, y: 0, down: false };
+  // 16ms の tick 間に pointerdown→up が完結する短いタップを取りこぼさないためのラッチ
+  let pointerTapped = false;
 
   function numberValue(value: unknown, fallback: number): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -128,7 +130,8 @@
 
     score = typeof frame.score === 'number' ? frame.score : score;
     timeLeft = typeof frame.timeLeft === 'number' ? frame.timeLeft : timeLeft;
-    status = frame.message ?? status;
+    // 生成コードは終了時以外 message を返さないことが多いので、フレームが届いていれば「プレイ中」にする
+    status = frame.message ?? 'プレイ中';
   }
 
   function postStart() {
@@ -147,11 +150,14 @@
       dt,
       input: {
         keys: Array.from(keys),
-        pointer
+        pointer: { x: pointer.x, y: pointer.y, down: pointer.down || pointerTapped }
       },
       width: canvas.width,
-      height: canvas.height
+      height: canvas.height,
+      // LLM 生成コードは tick 側でも durationSec を参照しがちなので冗長に渡す
+      durationSec
     });
+    pointerTapped = false;
     rafId = requestAnimationFrame(loop);
   }
 
@@ -192,11 +198,14 @@
     const rect = canvas.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / Math.max(1, rect.width)) * canvas.width;
     pointer.y = ((event.clientY - rect.top) / Math.max(1, rect.height)) * canvas.height;
+    if (down) pointerTapped = true;
     pointer.down = down;
   }
 
   function handleKeyDown(event: KeyboardEvent) {
+    // LLM 生成コードは 'Space'/'KeyW' (event.code) と ' '/'w' (event.key) のどちらで判定するか揺れるため両方入れる
     keys.add(event.key);
+    keys.add(event.code);
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(event.key)) {
       event.preventDefault();
     }
@@ -204,6 +213,7 @@
 
   function handleKeyUp(event: KeyboardEvent) {
     keys.delete(event.key);
+    keys.delete(event.code);
   }
 
   onMount(() => {
