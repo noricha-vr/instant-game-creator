@@ -1,30 +1,24 @@
 # 今すぐゲームクリエイター / Instant Game Creator
 
-キーワードと3つの要素から、子ども向けの即興ミニゲームを生成するローカル試作品です。
+キーワードと3つの要素を選ぶだけで、子ども向けの30秒ミニゲームを即生成して遊べるローカル試作品です。
 
-最初の目的は **Cloudflareに載せる前に、この体験がローカルで成立するかを確認すること** です。
+![トップページ](docs/images/screenshot-top.png)
 
 ## できること
 
-- キーワード入力
-- 3要素の候補をランダム表示
-- クリックで3要素を選択・差し替え
-- 追加指示入力
-- Cerebras APIで「仕様 + コード」を一発生成
+- キーワード例チップから選択
+- 単語レベルの3要素カードをクリックで選択・差し替え
+- Cerebras API で「仕様 + コード」を一発生成（約3〜10秒）
 - APIキー未設定時はモック生成で即動作確認
-- 生成コードをWeb Workerで実行
-- Canvasでゲーム表示
-- ローカルJSONに保存
-- `/g/:slug` の共有URL
-- ギャラリー表示
+- 生成コードを Web Worker + Canvas で実行（開始時にプレイ方法を約3秒表示）
+- ゲーム終了後はタップ / Space で即リスタート
+- ローカル JSON に保存、`/g/:slug` の共有URL、ギャラリー表示
 - 生成失敗時の自動1回リトライ
 
 ## 技術構成
 
-- SvelteKit
-- Svelte 5
-- Canvas API
-- Web Worker
+- SvelteKit / Svelte 5
+- Canvas API + Web Worker（生成コードのサンドボックス実行）
 - SvelteKit server endpoints
 - ローカル保存: `.local-data/games.json`
 - Cerebras API: サーバー側から `https://api.cerebras.ai/v1/chat/completions` を呼び出し
@@ -32,110 +26,63 @@
 ## セットアップ
 
 ```bash
-cd instant-game-creator
 cp .env.example .env
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
-ブラウザで以下を開きます。
+ブラウザで http://localhost:5173 を開きます。
 
-```text
-http://localhost:5173
-```
+## Cerebras API を使う場合
 
-## Cerebras APIを使う場合
-
-`.env` にAPIキーを設定します。
+`.env` に API キーを設定します。
 
 ```bash
 CEREBRAS_API_KEY=your-api-key
-CEREBRAS_MODEL=gpt-oss-120b
+CEREBRAS_MODEL=zai-glm-4.7
 CEREBRAS_MOCK=0
 ```
 
-APIキーを入れない場合は、自動的にモック生成になります。
-
-強制的にモック生成にしたい場合:
-
-```bash
-CEREBRAS_MOCK=1
-```
+- API キーを入れない場合は自動的にモック生成になります（強制モックは `CEREBRAS_MOCK=1`）
+- serverless API で使えるモデルは `/v1/models` で確認できます（Kimi K2.6 等は Dedicated Endpoints 専用）
+- GLM 系は reasoning がコンテキスト上限（合計8192トークン）を圧迫して本文が切れるため、既定で `reasoning_effort: none` を送信します（`CEREBRAS_REASONING_EFFORT` で変更可）
 
 ## ディレクトリ構成
 
 ```text
-src/routes/+page.svelte                 トップ画面・生成UI・ギャラリー
-src/routes/g/[id]/+page.svelte           共有ゲーム画面
-src/routes/api/elements/+server.ts       3要素候補API
-src/routes/api/generate/+server.ts       生成API
-src/routes/api/games/+server.ts          ギャラリーAPI
-src/lib/components/WorkerCanvasGame.svelte Web Worker + Canvasゲーム実行UI
-src/lib/server/cerebras.ts               Cerebras API呼び出し
-src/lib/server/prompt.ts                 生成プロンプト
-src/lib/server/validateGenerated.ts      生成物の簡易検証
-src/lib/server/mockGame.ts               APIキーなし用のモックゲーム
-src/lib/server/storage.ts                ローカルJSON保存
+src/routes/+page.svelte                    トップ画面・生成UI・ギャラリー
+src/routes/g/[id]/+page.svelte             共有ゲーム画面
+src/routes/api/elements/+server.ts         3要素候補API
+src/routes/api/generate/+server.ts         生成API
+src/routes/api/games/+server.ts            ギャラリーAPI
+src/lib/components/WorkerCanvasGame.svelte Web Worker + Canvas ゲーム実行ランナー
+src/lib/server/cerebras.ts                 Cerebras API 呼び出し
+src/lib/server/prompt.ts                   生成プロンプト（ゲーム仕様の正本）
+src/lib/server/validateGenerated.ts        生成物の検証（構文 + 実行時シミュレーション）
+src/lib/server/mockGame.ts                 APIキーなし用のモックゲーム
+src/lib/server/storage.ts                  ローカルJSON保存
+src/lib/server/elementPool.ts              要素候補プール
 ```
 
-## 生成データ
+## 設計判断
 
-生成されたゲームは以下に保存されます。
+### 1. 生成コードは Web Worker で実行、Svelte コンポーネントは保存のみ
 
-```text
-.local-data/games.json
-```
+LLM が返した Svelte コンポーネントをその場でコンパイル・実行する設計は重く壊れやすいため、実行本体は `workerScript`（描画コマンドを返す純粋な JS）に限定し、共通ランナーが Canvas に描画します。`svelteComponent` は将来のビルド・検査用に保存だけします。
 
-このファイルは `.gitignore` に入れています。
+### 2. 保存前に実行時シミュレーションで検証
 
-## 現時点の重要な設計判断
+構文チェックだけでは「tick でクラッシュ」「タイマーが進まない」等の遊べないコードを弾けないため、`node:vm` で start + 180 tick を実際に実行し、フレーム変化・timeLeft の妥当性を確認してから保存します。不合格は自動リトライに乗ります。
+（注意: `node:vm` はセキュリティ境界ではありません。ローカル試作前提であり、公開時は隔離実行への置き換えが必要です）
 
-### 1. 「Svelteコンポーネントを返す」は保存し、実行はWorkerに寄せる
+### 3. DB は SQLite ではなくローカル JSON
 
-LLMが返したSvelteコンポーネントをブラウザ上でその場でコンパイル・実行する設計は、初期検証としては重く、壊れやすく、危険です。
-
-そのため、この試作品ではCerebrasに以下を返させます。
-
-- `svelteComponent`: 将来のビルド・保存・検査用
-- `workerScript`: 実際にブラウザで動かすゲーム本体
-
-ユーザーにはコードを見せず、Svelte側の共通ランナーでWeb Workerを起動してCanvasに描画します。
-
-### 2. Phaser.js / Three.js は初期版では未使用
-
-最初はCanvas APIに絞っています。理由は、生成コードの制約を強めやすく、失敗時の原因が見えやすいからです。
-
-次の段階で、ゲームタイプごとに以下のように分ける想定です。
-
-- 2Dカジュアル: Canvas API
-- 2Dアクションが複雑化: Phaser.js
-- 3Dミニゲーム: Three.js
-
-### 3. DBはSQLiteではなくローカルJSON
-
-まずは体験検証が目的なので、SQLiteよりも差し替えが簡単なJSON保存にしています。
-
-Cloudflare移行時は `src/lib/server/storage.ts` をD1/R2実装に差し替えます。
-
-## Cloudflare移行の見取り図
-
-詳細は `docs/cloudflare-migration.md` を参照してください。
-
-ざっくりは以下です。
-
-1. `@sveltejs/adapter-cloudflare` に変更
-2. D1に `games` テーブルを作成
-3. R2に生成コード・サムネイルを保存
-4. `storage.ts` をD1/R2対応に差し替え
-5. Cerebras APIキーをCloudflare Secretsに保存
-6. 共有URLとギャラリーを本番向けに調整
+体験検証が目的のため、差し替えが簡単な JSON 保存にしています。Cloudflare 移行時は `src/lib/server/storage.ts` を D1/R2 実装に差し替えます（詳細: `docs/cloudflare-migration.md`）。
 
 ## 次にやると良いこと
 
-- 生成ゲームの自動スクリーンショット作成
-- ギャラリー用サムネイル保存
-- 失敗ゲームのログ保存
-- 生成プロンプトのABテスト
-- Workerの実行時間・描画命令数の制限強化
+- 生成ゲームの自動スクリーンショット・ギャラリー用サムネイル
+- 失敗ゲームのログ保存・生成プロンプトのABテスト
+- Worker の実行時間・描画命令数の制限強化
 - スマホでの操作性テスト
-- Cloudflare D1/R2移行
+- Cloudflare D1/R2 移行

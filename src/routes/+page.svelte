@@ -144,7 +144,7 @@
       <div class="hero-copy">
         <p class="eyebrow">Local prototype / Cerebras ready</p>
         <h1>今すぐゲームクリエイター</h1>
-        <p class="lead">キーワードを入れて、3つの要素を選ぶだけ。30秒以内に、1分遊べるミニゲームを生成します。</p>
+        <p class="lead">キーワードを入れて、3つの要素を選ぶだけ。すぐに30秒遊べるミニゲームを生成します。</p>
         <div class="example-row" aria-label="キーワード例">
           {#each examples as example}
             <button type="button" class="chip" on:click={() => chooseExample(example)}>{example}</button>
