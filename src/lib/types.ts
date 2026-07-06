@@ -10,7 +10,6 @@ export type GameElement = {
   id: string;
   label: string;
   kind: ElementKind;
-  hint?: string;
 };
 
 export type ElementGroup = {
