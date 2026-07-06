@@ -9,7 +9,7 @@ export function buildGamePrompt(request: GenerateRequest, retryReason?: string):
   return `あなたは子ども向けの即興ミニゲームを作るゲームデザイナー兼Svelteエンジニアです。
 
 目的:
-- ユーザーが入力したキーワードと3要素から、1分くらい遊べるCanvasミニゲームを作る。
+- ユーザーが入力したキーワードと3要素から、30秒くらい遊べるCanvasミニゲームを作る。
 - スマホ縦画面、PCブラウザ、タップ、マウス、キーボードに対応する。
 - 粗くても即遊べることを優先する。
 
@@ -44,14 +44,20 @@ workerScriptの制約:
 - dt の単位はミリ秒（約16.7）。物理計算で秒が必要なら dt / 1000 に変換してから使う。
 - input.keys には押下中キーの event.key と event.code の両方が入る（例: ' ', 'Space', 'ArrowUp', 'w', 'KeyW'）。
 - tickごとに self.postMessage({ type:'frame', background:string, shapes:Array, score:number, timeLeft:number, message?:string }) を返す。
+- timeLeft は残り秒数（秒単位、ミリ秒ではない）。durationSec から経過秒を引いた値を返す。
 - shapes は以下だけを使う:
   - { type:'rect', x, y, w, h, fill?, stroke?, lineWidth?, radius? }
   - { type:'circle', x, y, r, fill?, stroke?, lineWidth? }
   - { type:'line', x1, y1, x2, y2, stroke?, lineWidth? }
   - { type:'text', text, x, y, size?, fill?, align?, baseline?, maxWidth? }
-- 60秒で遊べるゲームにする。勝敗またはスコアが分かるようにする。
+- 30秒で遊べるゲームにする。勝敗またはスコアが分かるようにする。
 - 開始から約3秒間、プレイ方法（操作方法と目的）を画面中央付近に text で大きく表示してから本編を始める。文字は背景と十分なコントラストを取る。
 - 説明文は1行12文字以内で複数行に分け、各 text に maxWidth: width - 40 を指定して画面からはみ出させない。
+- ゲーム終了画面に「タップ か スペースキー でもういちど」という案内を text で表示する。
+- 背景は単色で終わらせず、テーマに合う装飾（星・雲・木・波・建物など）を複数の shape で常時描く。
+- プレイヤーと敵は最低3つの shape の組み合わせで描き、目や模様など表情を付ける。
+- アイテム取得時や被弾時に、広がる円・小さな飛沫・スコアのポップアップ text などの視覚エフェクトを短時間表示する。
+- 配色はテーマに合った4〜6色のパレットに揃え、背景と前景のコントラストを確保する。
 - 生成するコードは30000文字以内。
 ${retry}`;
 }

@@ -29,7 +29,7 @@ const ENEMY_NAME = ${JSON.stringify(enemy)};
 const TREASURE_NAME = ${JSON.stringify(treasure)};
 let width = 360;
 let height = 640;
-let durationSec = 60;
+let durationSec = 30;
 let elapsed = 0;
 let score = 0;
 let combo = 1;
@@ -72,7 +72,7 @@ function spawnEnemy() {
 function reset(nextWidth, nextHeight, nextDurationSec) {
   width = nextWidth || width;
   height = nextHeight || height;
-  durationSec = nextDurationSec || 60;
+  durationSec = nextDurationSec || 30;
   elapsed = 0;
   score = 0;
   combo = 1;
@@ -169,6 +169,7 @@ function makeFrame() {
     shapes.push({ type: 'rect', x: 30, y: height / 2 - 74, w: width - 60, h: 148, fill: 'rgba(16,24,40,0.92)', stroke: '#FEEA9A', lineWidth: 2, radius: 18 });
     shapes.push({ type: 'text', text: score >= 120 ? 'クリア！すごい！' : 'もう一回あそぼう！', x: width / 2, y: height / 2 - 22, size: 24, fill: '#FEEA9A', align: 'center', baseline: 'middle' });
     shapes.push({ type: 'text', text: 'スコア ' + score, x: width / 2, y: height / 2 + 24, size: 20, fill: '#F9FAFB', align: 'center', baseline: 'middle' });
+    shapes.push({ type: 'text', text: 'タップ か スペースキー でもういちど', x: width / 2, y: height / 2 + 56, size: 13, fill: '#D0D5DD', align: 'center', baseline: 'middle', maxWidth: width - 80 });
   }
 
   return { type: 'frame', background: '#101828', shapes, score, timeLeft, message };
@@ -205,7 +206,7 @@ self.onmessage = function(event) {
 
   return {
     title,
-    summary: `${elements.join('・')}を使った、宝物集めの1分ミニゲームです。`,
+    summary: `${elements.join('・')}を使った、宝物集めの30秒ミニゲームです。`,
     controls: ['タップ/ドラッグで移動', '矢印キー/WASDで移動', `${treasure}を集める`, `${enemy}に当たらない`],
     workerScript,
     svelteComponent

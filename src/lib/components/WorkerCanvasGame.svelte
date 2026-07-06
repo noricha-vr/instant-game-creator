@@ -9,7 +9,7 @@
     durationSec?: number;
   };
 
-  let { title, workerScript, controls = [], durationSec = 60 }: Props = $props();
+  let { title, workerScript, controls = [], durationSec = 30 }: Props = $props();
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
@@ -17,7 +17,7 @@
   let rafId = 0;
   let lastTime = 0;
   let score = $state(0);
-  let timeLeft = $state(60);
+  let timeLeft = $state(30);
   let status = $state('起動中...');
   let errorMessage = $state('');
   let isRunning = $state(false);
@@ -202,7 +202,25 @@
     pointer.down = down;
   }
 
+  function restartIfFinished(): boolean {
+    if (timeLeft <= 0 && isRunning) {
+      startWorker();
+      return true;
+    }
+    return false;
+  }
+
+  function handlePointerDown(event: PointerEvent) {
+    updatePointer(event, true);
+    restartIfFinished();
+  }
+
   function handleKeyDown(event: KeyboardEvent) {
+    if (!event.repeat && (event.key === ' ' || event.key === 'Enter' || event.code === 'Space' || event.code === 'Enter') && restartIfFinished()) {
+      event.preventDefault();
+      return;
+    }
+
     // LLM 生成コードは 'Space'/'KeyW' (event.code) と ' '/'w' (event.key) のどちらで判定するか揺れるため両方入れる
     keys.add(event.key);
     keys.add(event.code);
@@ -255,7 +273,7 @@
     bind:this={canvas}
     tabindex="0"
     aria-label="ゲーム画面"
-    onpointerdown={(event) => updatePointer(event, true)}
+    onpointerdown={handlePointerDown}
     onpointermove={(event) => updatePointer(event, pointer.down)}
     onpointerup={(event) => updatePointer(event, false)}
     onpointercancel={(event) => updatePointer(event, false)}
