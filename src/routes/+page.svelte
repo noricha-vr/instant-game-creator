@@ -153,29 +153,10 @@
       </div>
 
       <form class="creator" on:submit|preventDefault={generateGame}>
-        <input
-          bind:value={keyword}
-          aria-label="キーワード"
-          placeholder="例: メダカ、宇宙、おばけ"
-          on:change={loadElements}
-        />
-
-        <div class="selected-panel">
-          <div class="section-title">
-            <button type="button" class="link-button" on:click={loadElements} disabled={isLoadingElements}>
-              {isLoadingElements ? '更新中...' : '別候補に変更'}
-            </button>
-          </div>
-          <div class="selected-list">
-            {#each selected as element}
-              <button type="button" class="selected-card" on:click={() => toggleElement(element)}>
-                <strong>{element.label}</strong>
-              </button>
-            {/each}
-            {#if selected.length < 3}
-              <div class="empty-card">あと{3 - selected.length}つ選択</div>
-            {/if}
-          </div>
+        <div class="section-title">
+          <button type="button" class="link-button" on:click={loadElements} disabled={isLoadingElements}>
+            {isLoadingElements ? '更新中...' : '別候補に変更'}
+          </button>
         </div>
 
         <div class="candidate-grid" aria-label="候補一覧">
@@ -243,8 +224,7 @@
       Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
-  button,
-  input {
+  button {
     font: inherit;
   }
 
@@ -333,22 +313,6 @@
     box-shadow: 0 22px 90px rgba(0, 0, 0, 0.28);
   }
 
-  input {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid #d0d5dd;
-    border-radius: 18px;
-    padding: 14px 15px;
-    background: #fff;
-    color: #101828;
-    outline: none;
-  }
-
-  input:focus {
-    border-color: #12b76a;
-    box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.14);
-  }
-
   .section-heading,
   .generated-topbar {
     display: flex;
@@ -369,15 +333,6 @@
     background: #f2f4f7;
   }
 
-  .selected-list {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-top: 10px;
-  }
-
-  .selected-card,
-  .empty-card,
   .candidate-card {
     border: 1px solid #d0d5dd;
     border-radius: 18px;
@@ -386,23 +341,9 @@
     text-align: left;
   }
 
-  .selected-card,
-  .empty-card {
-    min-height: 62px;
-    padding: 13px;
-  }
-
-  .selected-card strong,
   .candidate-card strong,
   .gallery-card strong {
     display: block;
-  }
-
-  .empty-card {
-    display: grid;
-    place-items: center;
-    color: #98a2b3;
-    border-style: dashed;
   }
 
   .candidate-grid {
@@ -591,7 +532,6 @@
       padding: 16px;
     }
 
-    .selected-list,
     .candidate-grid,
     .gallery-grid {
       grid-template-columns: 1fr;
