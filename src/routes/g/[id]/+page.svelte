@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-  <title>{data.game.title} | 今すぐゲームクリエイター</title>
+  <title>{data.game.title} | 今すぐシミュレーションクリエイター</title>
   <meta name="description" content={data.game.summary} />
 </svelte:head>
 
@@ -15,7 +15,7 @@
     <a href="/" class="home">← 新しく作る</a>
     <div class="meta">
       <strong>{data.game.title}</strong>
-      <span>{data.game.elements.join(' / ')}</span>
+      <span>{data.game.elements.map((element) => element.label).join(' / ')}</span>
     </div>
   </div>
 

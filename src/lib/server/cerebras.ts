@@ -30,7 +30,7 @@ export async function generateGameWithCerebras(
     return { payload: createMockGame(request), usedMock: true };
   }
 
-  const model = env.CEREBRAS_MODEL || 'gpt-oss-120b';
+  const model = env.CEREBRAS_MODEL || 'zai-glm-4.7';
   const prompt = buildGamePrompt(request, retryReason);
   const response = await fetch(CEREBRAS_ENDPOINT, {
     method: 'POST',
@@ -48,7 +48,7 @@ export async function generateGameWithCerebras(
       messages: [
         {
           role: 'system',
-          content: 'Return valid JSON only. You generate safe browser mini games for children.'
+          content: 'Return valid JSON only. You generate safe, mesmerizing browser simulations for children.'
         },
         {
           role: 'user',
