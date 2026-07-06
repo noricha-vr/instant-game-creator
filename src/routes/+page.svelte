@@ -153,14 +153,15 @@
       </div>
 
       <form class="creator" on:submit|preventDefault={generateGame}>
-        <label>
-          <span>キーワード</span>
-          <input bind:value={keyword} placeholder="例: メダカ、宇宙、おばけ" on:change={loadElements} />
-        </label>
+        <input
+          bind:value={keyword}
+          aria-label="キーワード"
+          placeholder="例: メダカ、宇宙、おばけ"
+          on:change={loadElements}
+        />
 
         <div class="selected-panel">
           <div class="section-title">
-            <span>選ばれた3要素</span>
             <button type="button" class="link-button" on:click={loadElements} disabled={isLoadingElements}>
               {isLoadingElements ? '更新中...' : '別候補に変更'}
             </button>
@@ -332,12 +333,6 @@
     box-shadow: 0 22px 90px rgba(0, 0, 0, 0.28);
   }
 
-  label {
-    display: grid;
-    gap: 8px;
-    font-weight: 900;
-  }
-
   input {
     width: 100%;
     box-sizing: border-box;
@@ -354,7 +349,6 @@
     box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.14);
   }
 
-  .section-title,
   .section-heading,
   .generated-topbar {
     display: flex;
@@ -363,8 +357,10 @@
     gap: 12px;
   }
 
-  .section-title span {
-    font-weight: 900;
+  /* 見出しラベルは削除済みのためボタンだけを右寄せする */
+  .section-title {
+    display: flex;
+    justify-content: flex-end;
   }
 
   .creator .link-button {
