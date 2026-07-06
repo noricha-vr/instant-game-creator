@@ -6,18 +6,16 @@
     title: string;
     workerScript: string;
     controls?: string[];
-    durationSec?: number;
   };
 
-  let { title, workerScript, controls = [], durationSec = 30 }: Props = $props();
+  let { title, workerScript, controls = [] }: Props = $props();
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
   let worker: Worker | null = null;
   let rafId = 0;
   let lastTime = 0;
-  let score = $state(0);
-  let timeLeft = $state(30);
+  let stats = $state<Record<string, number | string>>({});
   let status = $state('起動中...');
   let errorMessage = $state('');
   let isRunning = $state(false);
@@ -128,15 +126,13 @@
       drawShape(shape);
     }
 
-    score = typeof frame.score === 'number' ? frame.score : score;
-    timeLeft = typeof frame.timeLeft === 'number' ? frame.timeLeft : timeLeft;
-    // 生成コードは終了時以外 message を返さないことが多いので、フレームが届いていれば「プレイ中」にする
-    status = frame.message ?? 'プレイ中';
+    stats = frame.stats && typeof frame.stats === 'object' ? frame.stats : {};
+    status = frame.message ?? '観察中';
   }
 
   function postStart() {
     if (!worker || !canvas) return;
-    worker.postMessage({ type: 'start', width: canvas.width, height: canvas.height, durationSec });
+    worker.postMessage({ type: 'start', width: canvas.width, height: canvas.height });
     lastTime = performance.now();
     isRunning = true;
   }
@@ -153,9 +149,7 @@
         pointer: { x: pointer.x, y: pointer.y, down: pointer.down || pointerTapped }
       },
       width: canvas.width,
-      height: canvas.height,
-      // LLM 生成コードは tick 側でも durationSec を参照しがちなので冗長に渡す
-      durationSec
+      height: canvas.height
     });
     pointerTapped = false;
     rafId = requestAnimationFrame(loop);
@@ -173,8 +167,7 @@
     stopWorker();
     errorMessage = '';
     status = '起動中...';
-    score = 0;
-    timeLeft = durationSec;
+    stats = {};
     try {
       const blob = new Blob([workerScript], { type: 'text/javascript' });
       const url = URL.createObjectURL(blob);
@@ -184,7 +177,7 @@
         if (event.data?.type === 'frame') drawFrame(event.data);
       };
       worker.onerror = (event) => {
-        errorMessage = event.message || 'ゲーム内でエラーが発生しました';
+        errorMessage = event.message || 'シミュレーション内でエラーが発生しました';
         stopWorker();
       };
       postStart();
@@ -202,25 +195,11 @@
     pointer.down = down;
   }
 
-  function restartIfFinished(): boolean {
-    if (timeLeft <= 0 && isRunning) {
-      startWorker();
-      return true;
-    }
-    return false;
-  }
-
   function handlePointerDown(event: PointerEvent) {
     updatePointer(event, true);
-    restartIfFinished();
   }
 
   function handleKeyDown(event: KeyboardEvent) {
-    if (!event.repeat && (event.key === ' ' || event.key === 'Enter' || event.code === 'Space' || event.code === 'Enter') && restartIfFinished()) {
-      event.preventDefault();
-      return;
-    }
-
     // LLM 生成コードは 'Space'/'KeyW' (event.code) と ' '/'w' (event.key) のどちらで判定するか揺れるため両方入れる
     keys.add(event.key);
     keys.add(event.code);
@@ -258,21 +237,21 @@
 
 <section class="game-shell" aria-label={title}>
   <div class="hud">
-    <div>
-      <span class="label">SCORE</span>
-      <strong>{score}</strong>
+    <div class="stats" aria-label="観察データ">
+      {#each Object.entries(stats) as [label, value]}
+        <div class="stat">
+          <span class="label">{label}</span>
+          <strong>{value}</strong>
+        </div>
+      {/each}
     </div>
     <div class="status">{status}</div>
-    <div>
-      <span class="label">TIME</span>
-      <strong>{Math.ceil(Math.max(0, timeLeft))}</strong>
-    </div>
   </div>
 
   <canvas
     bind:this={canvas}
     tabindex="0"
-    aria-label="ゲーム画面"
+    aria-label="シミュレーション画面"
     onpointerdown={handlePointerDown}
     onpointermove={(event) => updatePointer(event, pointer.down)}
     onpointerup={(event) => updatePointer(event, false)}
@@ -285,12 +264,12 @@
         <span>{control}</span>
       {/each}
     </div>
-    <button type="button" onclick={startWorker}>リスタート</button>
+    <button type="button" onclick={startWorker}>リセット</button>
   </div>
 
   {#if errorMessage}
     <div class="error" role="alert">
-      <strong>ゲームを実行できませんでした</strong>
+      <strong>シミュレーションを実行できませんでした</strong>
       <p>{errorMessage}</p>
       <button type="button" onclick={startWorker}>もう一度起動</button>
     </div>
@@ -317,11 +296,17 @@
     color: #f9fafb;
   }
 
-  .hud > div:first-child,
-  .hud > div:last-child {
+  .stats {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .stat {
     min-width: 74px;
     padding: 8px 10px;
-    border-radius: 14px;
+    border-radius: 12px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.12);
   }

@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import WorkerCanvasGame from '$lib/components/WorkerCanvasGame.svelte';
-  import type { GalleryGame, GameElement, GameRecord } from '$lib/types';
+  import { elementKindLabel, type ElementGroup, type ElementKind, type GalleryGame, type GameElement, type GameRecord } from '$lib/types';
 
   let keyword = '';
-  let candidates: GameElement[] = [];
-  let selected: GameElement[] = [];
+  let groups: ElementGroup[] = [];
+  let selected: Partial<Record<ElementKind, GameElement>> = {};
   let gallery: GalleryGame[] = [];
   let generatedGame: GameRecord | null = null;
   let isLoadingElements = false;
@@ -13,16 +13,22 @@
   let errorMessage = '';
   let generationNote = '';
 
-  const examples = ['メダカ', '宇宙', 'おばけ', 'お菓子', '忍者', '雨の日'];
+  const examples = ['メダカ', 'ホタル', 'アリの行列', '雪', '宇宙のちり', 'シャボン玉'];
+  const requiredKinds: ElementKind[] = ['subject', 'dynamics', 'touch'];
+  $: canGenerate = requiredKinds.every((kind) => Boolean(selected[kind]));
 
   async function loadElements() {
     isLoadingElements = true;
     errorMessage = '';
     try {
-      const response = await fetch(`/api/elements?keyword=${encodeURIComponent(keyword)}&count=12`);
+      const response = await fetch(`/api/elements?keyword=${encodeURIComponent(keyword)}&perKind=8`);
       const data = await response.json();
-      candidates = data.elements ?? [];
-      selected = candidates.slice(0, 3);
+      groups = data.groups ?? [];
+      selected = Object.fromEntries(
+        groups
+          .map((group) => [group.kind, group.elements[0]])
+          .filter((entry): entry is [ElementKind, GameElement] => Boolean(entry[1]))
+      ) as Partial<Record<ElementKind, GameElement>>;
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : '候補の読み込みに失敗しました';
     } finally {
@@ -45,22 +51,18 @@
     loadElements();
   }
 
-  function toggleElement(element: GameElement) {
-    const exists = selected.some((item) => item.id === element.id);
-    if (exists) {
-      selected = selected.filter((item) => item.id !== element.id);
-      return;
-    }
-    if (selected.length < 3) {
-      selected = [...selected, element];
-      return;
-    }
-    selected = [selected[1], selected[2], element];
+  function selectElement(element: GameElement) {
+    selected = { ...selected, [element.kind]: element };
+  }
+
+  function selectedElements(): GameElement[] {
+    return requiredKinds.map((kind) => selected[kind]).filter((element): element is GameElement => Boolean(element));
   }
 
   async function generateGame() {
-    if (selected.length !== 3) {
-      errorMessage = '3つの要素を選んでください';
+    const elements = selectedElements();
+    if (elements.length !== 3) {
+      errorMessage = '主役・うごき・さわるとを1つずつ選んでください';
       return;
     }
     isGenerating = true;
@@ -72,7 +74,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keyword,
-          elements: selected.map((item) => item.label)
+          elements: elements.map((item) => ({ kind: item.kind, label: item.label }))
         })
       });
       const data = await response.json();
@@ -115,8 +117,8 @@
 </script>
 
 <svelte:head>
-  <title>今すぐゲームクリエイター</title>
-  <meta name="description" content="キーワードと3つの要素から、すぐ遊べる子ども向けミニゲームを生成するローカル試作品。" />
+  <title>今すぐシミュレーションクリエイター</title>
+  <meta name="description" content="キーワードと3つの要素から、眺めて楽しい子ども向けシミュレーションを生成するローカル試作品。" />
 </svelte:head>
 
 {#if generatedGame}
@@ -143,8 +145,8 @@
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">Local prototype / Cerebras ready</p>
-        <h1>今すぐゲームクリエイター</h1>
-        <p class="lead">キーワードを入れて、3つの要素を選ぶだけ。すぐに30秒遊べるミニゲームを生成します。</p>
+        <h1>今すぐシミュレーションクリエイター</h1>
+        <p class="lead">キーワードを入れて、主役・うごき・さわるとを選ぶだけ。ずっと眺められるシミュレーションを生成します。</p>
         <div class="example-row" aria-label="キーワード例">
           {#each examples as example}
             <button type="button" class="chip" on:click={() => chooseExample(example)}>{example}</button>
@@ -159,17 +161,26 @@
           </button>
         </div>
 
-        <div class="candidate-grid" aria-label="候補一覧">
-          {#each candidates as element}
-            <button
-              type="button"
-              class:selected={selected.some((item) => item.id === element.id)}
-              class="candidate-card"
-              on:click={() => toggleElement(element)}
-            >
-              <span>{element.kind}</span>
-              <strong>{element.label}</strong>
-            </button>
+        <div class="candidate-groups" aria-label="候補一覧">
+          {#each groups as group}
+            <section class="candidate-row" aria-labelledby={`candidate-${group.kind}`}>
+              <div class="row-heading">
+                <span id={`candidate-${group.kind}`}>{elementKindLabel[group.kind]}</span>
+              </div>
+              <div class="candidate-options">
+                {#each group.elements as element}
+                  <button
+                    type="button"
+                    class:selected={selected[element.kind]?.id === element.id}
+                    class="candidate-card"
+                    aria-pressed={selected[element.kind]?.id === element.id}
+                    on:click={() => selectElement(element)}
+                  >
+                    <strong>{element.label}</strong>
+                  </button>
+                {/each}
+              </div>
+            </section>
           {/each}
         </div>
 
@@ -180,8 +191,8 @@
           <p class="note">{generationNote}</p>
         {/if}
 
-        <button type="submit" class="primary" disabled={isGenerating || selected.length !== 3}>
-          {isGenerating ? 'ゲーム生成中...' : 'この3要素でゲーム生成'}
+        <button type="submit" class="primary" disabled={isGenerating || !canGenerate}>
+          {isGenerating ? 'シミュレーション生成中...' : 'この3要素でシミュレーション生成'}
         </button>
       </form>
     </section>
@@ -196,14 +207,14 @@
       </div>
 
       {#if gallery.length === 0}
-        <div class="empty-gallery">まだ保存されたゲームはありません。まず1つ作ってみてください。</div>
+        <div class="empty-gallery">まだ保存されたシミュレーションはありません。まず1つ作ってみてください。</div>
       {:else}
         <div class="gallery-grid">
           {#each gallery as game}
             <a href={game.sharePath} class="gallery-card">
               <strong>{game.title}</strong>
               <span>{game.summary}</span>
-              <small>{game.elements.join(' / ')}</small>
+              <small>{game.elements.map((element) => element.label).join(' / ')}</small>
             </a>
           {/each}
         </div>
@@ -333,12 +344,48 @@
     background: #f2f4f7;
   }
 
+  .candidate-groups {
+    display: grid;
+    gap: 14px;
+  }
+
+  .candidate-row {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .row-heading {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    color: #344054;
+    font-weight: 900;
+  }
+
+  .candidate-options {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
   .candidate-card {
+    min-height: 48px;
     border: 1px solid #d0d5dd;
-    border-radius: 18px;
+    border-radius: 14px;
     background: #fff;
     color: #101828;
-    text-align: left;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+
+  .candidate-card {
+    padding: 11px 10px;
+    transition:
+      transform 0.15s ease,
+      border-color 0.15s ease,
+      background 0.15s ease;
   }
 
   .candidate-card strong,
@@ -346,39 +393,13 @@
     display: block;
   }
 
-  .candidate-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-  }
-
-  .candidate-card {
-    min-height: 68px;
-    padding: 13px;
-    transition:
-      transform 0.15s ease,
-      border-color 0.15s ease,
-      background 0.15s ease;
-  }
-
   .candidate-card:hover {
     transform: translateY(-2px);
   }
 
   .candidate-card.selected {
-    border-color: #12b76a;
-    background: #ecfdf3;
-  }
-
-  .candidate-card span {
-    display: inline-flex;
-    margin-bottom: 8px;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: #f2f4f7;
-    color: #667085;
-    font-size: 11px;
-    font-weight: 900;
+    border-color: #0e9384;
+    background: #ccfbef;
   }
 
   .primary {
@@ -532,9 +553,17 @@
       padding: 16px;
     }
 
-    .candidate-grid,
+    .candidate-options {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .gallery-grid {
       grid-template-columns: 1fr;
+    }
+
+    .candidate-row {
+      grid-template-columns: 1fr;
+      gap: 6px;
     }
 
     .generated-topbar {

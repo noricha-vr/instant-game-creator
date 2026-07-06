@@ -1,57 +1,12 @@
-import type { ElementKind, GameElement } from '$lib/types';
+import { elementKindLabel, type ElementGroup, type ElementKind, type GameElement } from '$lib/types';
 
-const pool: Array<Omit<GameElement, 'id'>> = [
-  { label: 'ねこ', kind: 'character' },
-  { label: 'いぬ', kind: 'character' },
-  { label: 'うさぎ', kind: 'character' },
-  { label: 'サメ', kind: 'character' },
-  { label: 'ペンギン', kind: 'character' },
-  { label: 'ロボ', kind: 'character' },
-  { label: 'にんじゃ', kind: 'character' },
-  { label: 'おばけ', kind: 'character' },
-  { label: 'ドラゴン', kind: 'character' },
-  { label: 'まほうつかい', kind: 'character' },
-  { label: '星', kind: 'item' },
-  { label: 'かぎ', kind: 'item' },
-  { label: 'コイン', kind: 'item' },
-  { label: 'りんご', kind: 'item' },
-  { label: 'ボール', kind: 'item' },
-  { label: 'つばさ', kind: 'item' },
-  { label: 'くつ', kind: 'item' },
-  { label: 'スコップ', kind: 'item' },
-  { label: 'ふうせん', kind: 'item' },
-  { label: 'キャンディ', kind: 'item' },
-  { label: 'うみ', kind: 'place' },
-  { label: 'そら', kind: 'place' },
-  { label: 'もり', kind: 'place' },
-  { label: 'おしろ', kind: 'place' },
-  { label: 'こうえん', kind: 'place' },
-  { label: 'どうくつ', kind: 'place' },
-  { label: 'ゆき山', kind: 'place' },
-  { label: 'うちゅう', kind: 'place' },
-  { label: 'おまつり', kind: 'place' },
-  { label: 'プール', kind: 'place' },
-  { label: 'めいろ', kind: 'place' },
-  { label: 'キッチン', kind: 'place' },
-  { label: 'ジャンプ', kind: 'rule' },
-  { label: 'ダッシュ', kind: 'rule' },
-  { label: 'すべる', kind: 'rule' },
-  { label: 'かくれる', kind: 'rule' },
-  { label: 'あつめる', kind: 'rule' },
-  { label: 'にげる', kind: 'rule' },
-  { label: 'まもる', kind: 'rule' },
-  { label: 'ワープ', kind: 'rule' },
-  { label: 'タイマー', kind: 'rule' },
-  { label: 'さかさま', kind: 'rule' },
-  { label: 'わくわく', kind: 'mood' },
-  { label: 'ふわふわ', kind: 'mood' },
-  { label: 'キラキラ', kind: 'mood' },
-  { label: 'かみなり', kind: 'obstacle' },
-  { label: 'トゲ', kind: 'obstacle' },
-  { label: 'あな', kind: 'obstacle' },
-  { label: 'かぜ', kind: 'obstacle' },
-  { label: 'ブロック', kind: 'obstacle' }
-];
+const pool: Record<ElementKind, string[]> = {
+  subject: ['メダカ', 'アリ', 'ホタル', 'ふうせん', 'すなつぶ', 'スライム', 'ほし', 'はっぱ'],
+  dynamics: ['むれる', 'おいかけっこ', 'たべる・たべられる', 'くっつく', 'ただよう', 'ぐるぐる回る', 'よけあう', 'ひろがる'],
+  touch: ['タップでふえる', 'タップでエサ', 'タップでかべ', 'タップで風', 'タップでばくはつ', 'タップで光る', 'タップで集まる', 'タップで分かれる']
+};
+
+const elementKinds: ElementKind[] = ['subject', 'dynamics', 'touch'];
 
 function hash(input: string): number {
   let h = 2166136261;
@@ -73,34 +28,45 @@ function createRng(seed: string): () => number {
   };
 }
 
-function keywordHints(keyword: string): Array<Omit<GameElement, 'id'>> {
-  const trimmed = keyword.trim();
-  if (!trimmed) return [];
-  return [
-    { label: trimmed, kind: 'character' },
-    { label: `${trimmed}あつめ`, kind: 'rule' }
-  ];
+function uniqueLabels(labels: string[]): string[] {
+  const seen = new Set<string>();
+  return labels.filter((label) => {
+    const normalized = label.trim();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
 }
 
-export function getRandomElements(keyword: string, count = 12): GameElement[] {
-  const rng = createRng(`${keyword}:${Date.now()}:${Math.random()}`);
-  const expanded = [...keywordHints(keyword), ...pool];
-  const shuffled = expanded
-    .map((item, index) => ({ item, score: rng() + index * 0.00001 }))
-    .sort((a, b) => a.score - b.score)
-    .slice(0, count);
+function labelsForKind(kind: ElementKind, keyword: string, limit: number): string[] {
+  const trimmed = keyword.trim().slice(0, 24);
+  const labels = uniqueLabels(kind === 'subject' && trimmed ? [trimmed, ...pool[kind]] : pool[kind]);
+  if (kind === 'subject' && trimmed) {
+    return [trimmed, ...shuffle(labels.filter((label) => label !== trimmed), `${kind}:${keyword}`).slice(0, limit - 1)];
+  }
+  return shuffle(labels, `${kind}:${keyword}:${Date.now()}`).slice(0, limit);
+}
 
-  return shuffled.map(({ item }, index) => ({
-    ...item,
-    id: `${item.kind}-${hash(`${keyword}-${item.label}-${index}`)}`
+function shuffle(labels: string[], seed: string): string[] {
+  const rng = createRng(seed);
+  return labels
+    .map((label, index) => ({ label, rank: rng() + index * 0.00001 }))
+    .sort((a, b) => a.rank - b.rank)
+    .map(({ label }) => label);
+}
+
+/** Return simulation element groups for the creator UI. */
+export function getElementGroups(keyword: string, perKind = 8): ElementGroup[] {
+  const limit = Math.min(Math.max(perKind, 6), 8);
+  return elementKinds.map((kind) => ({
+    kind,
+    label: elementKindLabel[kind],
+    elements: labelsForKind(kind, keyword, limit).map(
+      (label, index): GameElement => ({
+        id: `${kind}-${hash(`${keyword}-${label}-${index}`)}`,
+        kind,
+        label
+      })
+    )
   }));
 }
-
-export const elementKindLabel: Record<ElementKind, string> = {
-  character: 'キャラ',
-  place: '場所',
-  rule: 'ルール',
-  item: 'アイテム',
-  mood: '雰囲気',
-  obstacle: '障害物'
-};

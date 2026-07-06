@@ -1,7 +1,21 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import type { GenerateRequest } from '$lib/types';
+import type { ElementKind, GenerateRequest, SelectedElement } from '$lib/types';
 import { generateGameWithCerebras } from '$lib/server/cerebras';
 import { createGameId, saveGame, slugify } from '$lib/server/storage';
+
+const requiredKinds: ElementKind[] = ['subject', 'dynamics', 'touch'];
+
+function isElementKind(value: unknown): value is ElementKind {
+  return value === 'subject' || value === 'dynamics' || value === 'touch';
+}
+
+function normalizeElement(value: unknown): SelectedElement | null {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Record<string, unknown>;
+  const label = typeof item.label === 'string' ? item.label.trim().slice(0, 40) : '';
+  if (!label || !isElementKind(item.kind)) return null;
+  return { kind: item.kind, label };
+}
 
 function normalizeBody(body: unknown): GenerateRequest {
   if (!body || typeof body !== 'object') {
@@ -11,14 +25,22 @@ function normalizeBody(body: unknown): GenerateRequest {
   const keyword = typeof data.keyword === 'string' ? data.keyword.trim().slice(0, 80) : '';
   const instruction = typeof data.instruction === 'string' ? data.instruction.trim().slice(0, 1000) : '';
   const elements = Array.isArray(data.elements)
-    ? data.elements.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 3)
+    ? data.elements.map(normalizeElement).filter((item): item is SelectedElement => item !== null)
     : [];
 
-  if (elements.length !== 3) {
-    throw new Error('3つの要素を選んでください');
+  const byKind = new Map<ElementKind, SelectedElement>();
+  for (const element of elements) {
+    if (byKind.has(element.kind)) {
+      throw new Error('主役・うごき・さわるとの各カテゴリから1つずつ選んでください');
+    }
+    byKind.set(element.kind, element);
   }
 
-  return { keyword, instruction, elements };
+  if (requiredKinds.some((kind) => !byKind.has(kind))) {
+    throw new Error('主役・うごき・さわるとの各カテゴリから1つずつ選んでください');
+  }
+
+  return { keyword, instruction, elements: requiredKinds.map((kind) => byKind.get(kind) as SelectedElement) };
 }
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -45,7 +67,7 @@ export const POST: RequestHandler = async ({ request }) => {
       return json(
         {
           ok: false,
-          error: '生成に失敗しました。自動リトライ後も有効なゲームを作れませんでした。',
+          error: '生成に失敗しました。自動リトライ後も有効なシミュレーションを作れませんでした。',
           detail: lastError
         },
         { status: 502 }
@@ -65,7 +87,7 @@ export const POST: RequestHandler = async ({ request }) => {
       createdAt: now,
       updatedAt: now,
       attempts,
-      engine: 'canvas-worker-v1',
+      engine: 'canvas-worker-sim-v1',
       sharePath: `/g/${slug}`,
       ...result.payload
     });

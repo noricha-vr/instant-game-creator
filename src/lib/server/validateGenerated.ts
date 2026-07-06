@@ -1,5 +1,5 @@
 import { createContext, runInContext, Script } from 'node:vm';
-import type { GeneratedGamePayload } from '$lib/types';
+import type { GeneratedGamePayload, WorkerFrame } from '$lib/types';
 
 const forbiddenPatterns: Array<[RegExp, string]> = [
   [/\bimport\s+/i, 'import is not allowed'],
@@ -123,8 +123,8 @@ export function validateGeneratedPayload(value: unknown): GeneratedGamePayload {
     throw new Error(`workerScript has a syntax error: ${detail}`);
   }
 
-  // 構文が通っても「tickでクラッシュ」「timeLeftがNaN」「フレームが変わらない」等の実行時不良は
-  // 遊べないゲームになるため、保存前に短時間シミュレーションで振り落とす
+  // 構文が通っても「tickでクラッシュ」「フレームが変わらない」等の実行時不良は
+  // 観察できないシミュレーションになるため、保存前に短時間実行して振り落とす
   simulateWorkerScript(workerScript);
 
   return {
@@ -138,7 +138,6 @@ export function validateGeneratedPayload(value: unknown): GeneratedGamePayload {
 
 const SIMULATION_WIDTH = 400;
 const SIMULATION_HEIGHT = 640;
-const SIMULATION_DURATION_SEC = 60;
 const SIMULATION_TICK_DT_MS = 16.7;
 const SIMULATION_TICK_COUNT = 180;
 // vm の timeout は同期実行の上限。生成コード側の無限ループでサーバーが固まらないよう控えめに取る
@@ -148,7 +147,7 @@ const SIMULATION_DISPATCH_TIMEOUT_MS = 100;
 // 注意: node:vm はセキュリティ境界ではない（constructor 経由の escape が可能）。
 // ローカル試作前提の品質フィルタであり、本番公開時は isolated-vm や別プロセス実行に置き換えること。
 export function simulateWorkerScript(workerScript: string): void {
-  const frames: unknown[] = [];
+  const frames: WorkerFrame[] = [];
   // vm 内から自然に呼び出せる self を組み立てる。addEventListener 経由の登録も許容する
   const sandbox: Record<string, unknown> = {
     Math,
@@ -161,7 +160,9 @@ export function simulateWorkerScript(workerScript: string): void {
   const self = {
     onmessage: null as null | ((event: { data: unknown }) => void),
     postMessage: (frame: unknown) => {
-      frames.push(frame);
+      if (isWorkerFrame(frame)) {
+        frames.push(frame);
+      }
     },
     addEventListener: (type: string, handler: (event: { data: unknown }) => void) => {
       if (type === 'message' && typeof handler === 'function') {
@@ -204,42 +205,27 @@ export function simulateWorkerScript(workerScript: string): void {
     }
   };
 
-  dispatch(
-    { type: 'start', width: SIMULATION_WIDTH, height: SIMULATION_HEIGHT, durationSec: SIMULATION_DURATION_SEC },
-    'start'
-  );
-
-  const tickMessage = {
-    type: 'tick',
-    dt: SIMULATION_TICK_DT_MS,
-    input: { keys: [], pointer: { x: SIMULATION_WIDTH / 2, y: SIMULATION_HEIGHT / 2, down: false } },
-    width: SIMULATION_WIDTH,
-    height: SIMULATION_HEIGHT,
-    durationSec: SIMULATION_DURATION_SEC
-  };
+  dispatch({ type: 'start', width: SIMULATION_WIDTH, height: SIMULATION_HEIGHT }, 'start');
 
   const framesBeforeTicks = frames.length;
   for (let i = 0; i < SIMULATION_TICK_COUNT; i += 1) {
+    const pointerDown = i >= 119 && i <= 129;
+    const tickMessage = {
+      type: 'tick',
+      dt: SIMULATION_TICK_DT_MS,
+      input: { keys: [], pointer: { x: SIMULATION_WIDTH / 2, y: SIMULATION_HEIGHT / 2, down: pointerDown } },
+      width: SIMULATION_WIDTH,
+      height: SIMULATION_HEIGHT
+    };
     dispatch(tickMessage, `tick#${i + 1}`);
   }
 
   const tickFrames = frames.slice(framesBeforeTicks);
   if (tickFrames.length === 0) {
-    throw new Error('workerScriptが実行時エラー: tickに対してframeが返りません');
-  }
-
-  const lastFrame = tickFrames[tickFrames.length - 1] as { timeLeft?: unknown } | null;
-  const timeLeft = lastFrame && typeof lastFrame === 'object' ? lastFrame.timeLeft : undefined;
-  if (typeof timeLeft !== 'number' || Number.isNaN(timeLeft)) {
-    throw new Error('workerScriptが実行時エラー: timeLeftが数値ではありません');
-  }
-  // timeLeft をミリ秒で返すコードは HUD 表示が壊れるため秒単位を強制する
-  if (timeLeft > SIMULATION_DURATION_SEC) {
-    throw new Error('workerScriptが実行時エラー: timeLeftが秒単位ではありません（ミリ秒で返している疑い）');
+    throw new Error('workerScriptが実行時エラー: type:"frame" と shapes配列を持つframeがpostMessageされません');
   }
 
   // 「3秒経っても画面が変化しない」は (a) 開始から一切動いていない、(b) 途中で止まった、の両方を含める。
-  // dt を秒扱いする実装バグで durationSec を早々に消化し tick 数回でフリーズするケースを弾くため、
   // 中間フレーム(全体の1/3地点)と最終フレームの一致もフリーズ扱いにする
   const firstJson = safeStringify(tickFrames[0]);
   const lastJson = safeStringify(tickFrames[tickFrames.length - 1]);
@@ -250,6 +236,12 @@ export function simulateWorkerScript(workerScript: string): void {
   if (midJson !== null && lastJson !== null && midJson === lastJson) {
     throw new Error('workerScriptが実行時エラー: フレームが変化しません');
   }
+}
+
+function isWorkerFrame(value: unknown): value is WorkerFrame {
+  if (!value || typeof value !== 'object') return false;
+  const frame = value as Record<string, unknown>;
+  return frame.type === 'frame' && Array.isArray(frame.shapes);
 }
 
 // vm コンテキスト側で throw されたエラーは instanceof Error にマッチしないので message を直接読む

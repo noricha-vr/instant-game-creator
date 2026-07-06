@@ -1,4 +1,10 @@
-export type ElementKind = 'character' | 'place' | 'rule' | 'item' | 'mood' | 'obstacle';
+export type ElementKind = 'subject' | 'dynamics' | 'touch';
+
+export const elementKindLabel: Record<ElementKind, string> = {
+  subject: '主役',
+  dynamics: 'うごき・おたがい',
+  touch: 'さわると'
+};
 
 export type GameElement = {
   id: string;
@@ -7,9 +13,20 @@ export type GameElement = {
   hint?: string;
 };
 
+export type ElementGroup = {
+  kind: ElementKind;
+  label: string;
+  elements: GameElement[];
+};
+
+export type SelectedElement = {
+  kind: ElementKind;
+  label: string;
+};
+
 export type GenerateRequest = {
   keyword: string;
-  elements: string[];
+  elements: SelectedElement[];
   instruction: string;
 };
 
@@ -25,12 +42,12 @@ export type GameRecord = GeneratedGamePayload & {
   id: string;
   slug: string;
   keyword: string;
-  elements: string[];
+  elements: SelectedElement[];
   instruction: string;
   createdAt: string;
   updatedAt: string;
   attempts: number;
-  engine: 'canvas-worker-v1';
+  engine: 'canvas-worker-sim-v1';
   sharePath: string;
 };
 
@@ -85,7 +102,6 @@ export type WorkerFrame = {
   type: 'frame';
   background?: string;
   shapes: DrawCommand[];
-  score?: number;
+  stats?: Record<string, number | string>;
   message?: string;
-  timeLeft?: number;
 };
