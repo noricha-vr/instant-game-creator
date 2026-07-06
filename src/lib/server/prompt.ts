@@ -50,6 +50,7 @@ workerScriptの制約:
   - { type:'line', x1, y1, x2, y2, stroke?, lineWidth? }
   - { type:'text', text, x, y, size?, fill?, align?, baseline?, maxWidth? }
 - 60秒で遊べるゲームにする。勝敗またはスコアが分かるようにする。
+- 開始から約3秒間、プレイ方法（操作方法と目的）を画面中央付近に text で大きく表示してから本編を始める。文字は背景と十分なコントラストを取る。
 - 生成するコードは30000文字以内。
 ${retry}`;
 }
