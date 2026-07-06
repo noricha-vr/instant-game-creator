@@ -1,0 +1,14 @@
+node_modules
+.svelte-kit
+.vercel
+.netlify
+.wrangler
+.env
+.env.*
+!.env.example
+.local-data/*.json
+.local-data/generated
+.DS_Store
+build
+logs
+docs/tmp
