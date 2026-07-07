@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [sveltekit()],
   server: {
-    port: 5173
+    // Local Portal (services.json) に登録済みの割り当てポート
+    port: 2629
   }
 });
