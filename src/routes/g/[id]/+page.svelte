@@ -16,6 +16,9 @@
     <div class="meta">
       <strong>{data.app.title}</strong>
       <span>{data.app.idea}</span>
+      {#if data.app.adaptation}
+        <em>ひとり用にアレンジ: {data.app.adaptation}</em>
+      {/if}
     </div>
   </div>
 
@@ -62,6 +65,21 @@
   .meta span {
     color: #667085;
     font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .meta em {
+    width: fit-content;
+    max-width: 100%;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #f8f1e5;
+    color: #92400e;
+    font-size: 0.875rem;
+    font-style: normal;
+    font-weight: 800;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

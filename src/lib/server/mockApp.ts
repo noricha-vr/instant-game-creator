@@ -14,6 +14,13 @@ function trimIdea(input: string): string {
   return input.replace(/[\n\r\t]+/g, ' ').trim().slice(0, 60) || '今日のひらめき';
 }
 
+function mockAdaptation(idea: string): string | null {
+  if (/チャット|対戦|SNS|友達|オンライン/.test(idea)) {
+    return '相手や通信要素はひとり用の疑似体験にアレンジしました';
+  }
+  return null;
+}
+
 export function createMockDirections(idea: string): DirectionCard[] {
   const base = trimIdea(idea);
   return [
@@ -27,6 +34,7 @@ export function createMockDirections(idea: string): DirectionCard[] {
 export function createMockApp(request: GenerateRequest): GeneratedAppPayload {
   const idea = trimIdea(request.idea);
   const safeIdea = escapeHtml(idea);
+  const adaptation = mockAdaptation(request.idea);
   const html = `<!doctype html>
 <html lang="ja">
 <head>
@@ -135,6 +143,7 @@ document.getElementById('drawButton').addEventListener('click', function () {
     title: `${idea}おみくじ`,
     summary: 'ボタンを押すだけで今日の進め方を占える単一HTMLアプリです。',
     howToUse: ['ボタンを押す', '結果と一言を読む', 'もう一度押して引き直す'],
-    html
+    html,
+    adaptation
   });
 }

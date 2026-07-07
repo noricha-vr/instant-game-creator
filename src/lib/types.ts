@@ -15,6 +15,7 @@ export type GeneratedAppPayload = {
   summary: string;
   howToUse: string[];
   html: string;
+  adaptation: string | null;
 };
 
 export type AppRecord = GeneratedAppPayload & {

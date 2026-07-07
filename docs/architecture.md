@@ -34,10 +34,12 @@ type GeneratedAppPayload = {
   summary: string;
   howToUse: string[];
   html: string;
+  adaptation: string | null;
 };
 ```
 
 `html` は `<!doctype html>` から始まる自己完結の単一HTML文書です。CSSとJavaScriptはすべてインラインにします。
+`adaptation` は、通信・複数人・ログイン・永続保存などの前提をひとり用へ翻案した場合だけ説明します。
 
 ## データモデル
 

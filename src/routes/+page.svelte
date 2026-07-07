@@ -118,10 +118,15 @@
           bind:value={idea}
           maxlength="200"
           rows="5"
-          placeholder="例: 休憩時間に使う呼吸ガイド"
+          placeholder="例: 猫の性格診断、ポモドーロタイマー、ネオン風ブロック崩し"
           disabled={state === 'generating'}
         ></textarea>
       </label>
+      <div class="promise-row" aria-label="このアプリの約束">
+        <span>ひとりで遊べる</span>
+        <span>通信しない</span>
+        <span>データは保存されない</span>
+      </div>
       <div class="counter">{trimmedIdea.length}/200</div>
 
       <label>
@@ -343,6 +348,23 @@
     margin-top: -10px;
     color: #667085;
     text-align: right;
+    font-weight: 800;
+  }
+
+  .promise-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: -8px;
+  }
+
+  .promise-row span {
+    border: 1px solid #ded8cb;
+    border-radius: 999px;
+    padding: 6px 10px;
+    background: #f8f1e5;
+    color: #667085;
+    font-size: 0.875rem;
     font-weight: 800;
   }
 

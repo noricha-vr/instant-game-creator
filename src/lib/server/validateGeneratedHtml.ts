@@ -122,6 +122,7 @@ export function validateGeneratedAppPayload(value: unknown): GeneratedAppPayload
   const title = asString(candidate.title, 'title', 80);
   const summary = asString(candidate.summary, 'summary', 300);
   const html = asString(candidate.html, 'html', 60_000);
+  const adaptation = typeof candidate.adaptation === 'string' ? candidate.adaptation.trim().slice(0, 120) || null : null;
 
   if (!Array.isArray(candidate.howToUse) || candidate.howToUse.some((item) => typeof item !== 'string')) {
     throw new Error('howToUse must be a string array');
@@ -133,7 +134,8 @@ export function validateGeneratedAppPayload(value: unknown): GeneratedAppPayload
     title,
     summary,
     howToUse: (candidate.howToUse as string[]).slice(0, 4),
-    html: injectCsp(html)
+    html: injectCsp(html),
+    adaptation
   };
 }
 

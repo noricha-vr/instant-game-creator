@@ -40,11 +40,14 @@ MarkdownなしのJSONのみ。
   "title": "アプリタイトル",
   "summary": "短い説明",
   "howToUse": ["ボタンを押す", "結果を見る"],
-  "html": "<!doctype html><html lang=\"ja\">...</html>"
+  "html": "<!doctype html><html lang=\"ja\">...</html>",
+  "adaptation": null
 }
 ```
 
-JSONのトップレベルキーは `title`, `summary`, `howToUse`, `html` の4つだけです。
+JSONのトップレベルキーは `title`, `summary`, `howToUse`, `html`, `adaptation` の5つです。余剰キーは保存前に無視します。
+
+`adaptation` は、通信・複数人・ログイン・永続保存など単一HTMLでそのまま実現できない前提を、ひとり用に翻案した場合だけ1行で説明します。翻案不要なら `null` です。
 
 ## HTML要件
 
@@ -59,6 +62,7 @@ JSONのトップレベルキーは `title`, `summary`, `howToUse`, `html` の4�
 - UI文言は日本語
 - 4〜6色のまとまった配色
 - 開いた瞬間に使える完成品にする
+- 通信・複数人・複数デバイス・ログイン・永続保存が前提の入力は、一人・1画面・セッション内だけで体験の核を再現する
 
 ## 禁止トークン
 
