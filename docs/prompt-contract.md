@@ -91,10 +91,10 @@ JSONのトップレベルキーは `title`, `summary`, `howToUse`, `html`, `adap
 
 ## 保存前処理
 
-`validateGeneratedAppPayload` で構造と禁止事項を検証した後、`injectCsp` で CSP meta を強制注入します。既存の CSP meta は除去します。
+`validateGeneratedAppPayload` で構造と禁止事項を検証した後、`injectCsp` で信頼側のDOCTYPEとCSP専用の`<head>`を生成HTML全体より前へ追加します。既存のCSPは残し、複数policyとして制限を合成します。保存済みHTMLにも表示前に再適用します。
 
 ```text
-default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'
+default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'
 ```
 
 ## 失敗時

@@ -134,6 +134,6 @@ default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-s
 ## 現時点の制限
 
 - HTMLの意味的な完成度は検証できない
-- 外部通信禁止は静的検査とCSPに依存する
+- 外部リソース・リクエストの制限は静的検査とCSPに依存する。WebRTCは検証対象外であり、あらゆるネットワーク通信の完全隔離は保証しない
 - iframeの通信遮断・操作と旧Worker描画の回帰テストはローカルブラウザを必要とする
 - 生成HTMLのサイズが大きいほどローカルJSONが肥大化する
