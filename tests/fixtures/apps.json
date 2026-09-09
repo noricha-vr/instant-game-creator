@@ -1,0 +1,21 @@
+{
+  "apps": [
+    {
+      "id": "a_security",
+      "slug": "security-test",
+      "title": "保存済みアプリ",
+      "summary": "保存済みHTMLのCSP回帰確認用",
+      "howToUse": ["カウンターを押す"],
+      "html": "<!doctype html><html lang=\"ja\"><script>new Image().src='/network-sink?early=1'</script><head><style>body{font-family:sans-serif}button{padding:12px}</style></head><body><button id=\"counter\" onclick=\"this.textContent=String(Number(this.textContent)+1)\">0</button><button id=\"navigate\" onclick=\"location.href='/network-sink?nav=1'\">移動</button></body></html>",
+      "adaptation": null,
+      "idea": "保存済みアプリ",
+      "direction": null,
+      "instruction": "",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "updatedAt": "2026-09-01T00:00:00.000Z",
+      "attempts": 1,
+      "engine": "html-v1",
+      "sharePath": "/g/security-test"
+    }
+  ]
+}

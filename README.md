@@ -13,7 +13,7 @@
 - Cerebras API で単一 HTML 文書を生成
 - APIキー未設定時はおみくじアプリのモックで即動作確認
 - 保存前に HTML 構造・禁止トークン・script構文を検査
-- CSP meta を強制注入してから保存
+- CSP meta を文書の先頭へ強制注入し、保存済みHTMLにも表示前に再適用
 - `<iframe sandbox="allow-scripts" srcdoc>` で即実行
 - ローカル JSON に保存、`/g/:slug` の共有URL、ギャラリー表示
 
@@ -22,7 +22,7 @@
 - SvelteKit / Svelte 5
 - sandbox iframe + srcdoc
 - SvelteKit server endpoints
-- ローカル保存: `.local-data/apps.json`
+- ローカル保存: `.local-data/apps.json`（旧 `.local-data/games.json` は共有URL用に読み取り専用）
 - Cerebras API: サーバー側から `https://api.cerebras.ai/v1/chat/completions` を呼び出し
 
 ## セットアップ
@@ -33,7 +33,7 @@ bun install
 bun run dev
 ```
 
-ブラウザで http://localhost:5173 を開きます。
+ブラウザで http://localhost:2629 を開きます。
 
 ## Cerebras API を使う場合
 
@@ -59,6 +59,7 @@ src/routes/api/directions/+server.ts       方向カードAPI
 src/routes/api/generate/+server.ts         HTML生成API
 src/routes/api/games/+server.ts            一覧API（既存パスを継続利用）
 src/lib/components/HtmlAppFrame.svelte     sandbox iframe 実行ランナー
+src/lib/components/WorkerCanvasGame.svelte 旧Worker生成物の互換ランナー
 src/lib/server/cerebras.ts                 Cerebras API 呼び出し
 src/lib/server/prompt.ts                   生成プロンプト
 src/lib/server/validateGeneratedHtml.ts    生成HTMLの検証 + CSP注入
@@ -78,13 +79,17 @@ LLM が返す成果物を `title`, `summary`, `howToUse`, `html` の4キーに�
 
 ### 3. 保存前に CSP を強制注入
 
-`injectCsp()` は既存の CSP meta を除去してから、以下の CSP を `<head>` 直後へ注入します。
+`injectCsp()` は既存の CSP meta を除去してから、以下の CSP をDOCTYPEと`<html>`の直後へ注入します。保存済みHTMLにも共有画面の読取時に再適用し、親documentは`frame-src 'none'`でiframeのネットワーク遷移を遮断します。
 
 ```text
-default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'
+default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'
 ```
 
-### 4. 検証は品質フィルタ
+### 4. 旧共有URLは読み取り専用で維持
+
+`LOCAL_GAMES_FILE`に残る`canvas-worker-sim-v1`生成物は、新しい保存先へ変換せず`WorkerCanvasGame`で表示します。新規HTMLアプリは`LOCAL_APPS_FILE`だけへ保存します。
+
+### 5. 検証は品質フィルタ
 
 `validateGeneratedHtml.ts` は JSON抽出、4キー検証、HTML構造検査、禁止トークン検査、`<script>` ブロックの構文検査を行います。実行スモークは false positive を避けるため行わず、安全性は sandbox と CSP に寄せます。
 

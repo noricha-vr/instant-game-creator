@@ -12,16 +12,26 @@
   let state: CreatorState = 'idle';
   let errorMessage = '';
   let note = '';
+  let directionRequestVersion = 0;
 
   const examples = ['ポモドーロタイマー', '性格診断', '献立ルーレット', '読書メモ', '集中用の画面', '家計ミニ計算機'];
 
   $: trimmedIdea = idea.trim();
   $: canSubmit = trimmedIdea.length > 0 && state !== 'directions-loading' && state !== 'generating';
 
-  function setExample(value: string) {
+  function setIdea(value: string) {
+    directionRequestVersion += 1;
     idea = value;
     directions = [];
-    state = 'idle';
+    if (state !== 'generating') state = 'idle';
+    errorMessage = '';
+    note = '';
+  }
+
+  function handleIdeaInput() {
+    directionRequestVersion += 1;
+    directions = [];
+    if (state !== 'generating') state = 'idle';
     errorMessage = '';
     note = '';
   }
@@ -38,6 +48,8 @@
 
   async function loadDirections() {
     if (!canSubmit) return;
+    const requestedIdea = trimmedIdea;
+    const requestVersion = ++directionRequestVersion;
     state = 'directions-loading';
     errorMessage = '';
     note = '';
@@ -45,9 +57,10 @@
       const response = await fetch('/api/directions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idea: trimmedIdea })
+        body: JSON.stringify({ idea: requestedIdea })
       });
       const data = await response.json();
+      if (requestVersion !== directionRequestVersion || requestedIdea !== trimmedIdea) return;
       if (!response.ok || !data.ok) {
         throw new Error(data.error || 'ふくらませ方を作れませんでした');
       }
@@ -55,6 +68,7 @@
       state = directions.length > 0 ? 'directions' : 'idle';
       note = data.usedMock ? 'モックの方向カードを表示しています。' : '';
     } catch (error) {
+      if (requestVersion !== directionRequestVersion || requestedIdea !== trimmedIdea) return;
       state = 'error';
       errorMessage = error instanceof Error ? error.message : 'ふくらませ方を作れませんでした';
       note = 'カードなしでもそのまま作れます。';
@@ -63,6 +77,8 @@
 
   async function generateApp(direction?: Pick<DirectionCard, 'label' | 'description'>) {
     if (!canSubmit) return;
+    directionRequestVersion += 1;
+    directions = [];
     state = 'generating';
     errorMessage = '';
     note = direction ? `${direction.label}で実装中...` : 'そのまま実装中...';
@@ -106,7 +122,7 @@
       <p class="lead">作りたいものを一文で書くと、LLMがその場で使える小さなHTMLアプリに仕上げます。</p>
       <div class="example-row" aria-label="入力例">
         {#each examples as example}
-          <button type="button" class="chip" on:click={() => setExample(example)}>{example}</button>
+          <button type="button" class="chip" on:click={() => setIdea(example)}>{example}</button>
         {/each}
       </div>
     </div>
@@ -116,6 +132,7 @@
         <span>作りたいもの</span>
         <textarea
           bind:value={idea}
+          on:input={handleIdeaInput}
           maxlength="200"
           rows="5"
           placeholder="例: 猫の性格診断、ポモドーロタイマー、ネオン風ブロック崩し"

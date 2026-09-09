@@ -1,10 +1,14 @@
 import { error } from '@sveltejs/kit';
-import { getApp } from '$lib/server/storage';
+import { getSharedRecord } from '$lib/server/storage';
+import { injectCsp } from '$lib/server/validateGeneratedHtml';
 
 export const load = async ({ params }) => {
-  const app = await getApp(params.id);
-  if (!app) {
+  const record = await getSharedRecord(params.id);
+  if (!record) {
     throw error(404, 'app not found');
   }
-  return { app };
+  if (record.engine === 'html-v1') {
+    return { app: { ...record, html: injectCsp(record.html) } };
+  }
+  return { app: record };
 };

@@ -1,5 +1,6 @@
 <script lang="ts">
   import HtmlAppFrame from '$lib/components/HtmlAppFrame.svelte';
+  import WorkerCanvasGame from '$lib/components/WorkerCanvasGame.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -15,14 +16,22 @@
     <a href="/" class="home">新しく作る</a>
     <div class="meta">
       <strong>{data.app.title}</strong>
-      <span>{data.app.idea}</span>
-      {#if data.app.adaptation}
+      <span>{data.app.engine === 'html-v1' ? data.app.idea : data.app.keyword}</span>
+      {#if data.app.engine === 'html-v1' && data.app.adaptation}
         <em>ひとり用にアレンジ: {data.app.adaptation}</em>
       {/if}
     </div>
   </div>
 
-  <HtmlAppFrame title={data.app.title} html={data.app.html} howToUse={data.app.howToUse} />
+  {#if data.app.engine === 'html-v1'}
+    <HtmlAppFrame title={data.app.title} html={data.app.html} howToUse={data.app.howToUse} />
+  {:else}
+    <WorkerCanvasGame
+      title={data.app.title}
+      workerScript={data.app.workerScript}
+      controls={data.app.controls}
+    />
+  {/if}
 </main>
 
 <style>

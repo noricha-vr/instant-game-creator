@@ -2,7 +2,7 @@ import { Script } from 'node:vm';
 import type { GeneratedAppPayload } from '$lib/types';
 
 const CSP_CONTENT =
-  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'";
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'";
 
 const forbiddenPatterns: Array<[RegExp, string]> = [
   [/\bfetch\s*\(/i, 'fetch is not allowed'],
@@ -107,10 +107,14 @@ export function injectCsp(html: string): string {
     ''
   );
   const cspMeta = `<meta http-equiv="Content-Security-Policy" content="${CSP_CONTENT}">`;
-  if (/<head\b[^>]*>/i.test(withoutExistingCsp)) {
-    return withoutExistingCsp.replace(/<head\b[^>]*>/i, (head) => `${head}\n${cspMeta}`);
+  const htmlOpen = withoutExistingCsp.match(/<html\b[^>]*>/i);
+  if (!htmlOpen || htmlOpen.index === undefined) {
+    return `<!doctype html>\n<html>\n<head>\n${cspMeta}\n</head>\n${withoutExistingCsp}\n</html>`;
   }
-  return `${cspMeta}\n${withoutExistingCsp}`;
+
+  const beforeHtml = withoutExistingCsp.slice(0, htmlOpen.index).replace(/<!doctype\b[^>]*>/gi, '').trim();
+  const afterHtml = withoutExistingCsp.slice(htmlOpen.index + htmlOpen[0].length);
+  return `<!doctype html>\n${htmlOpen[0]}\n<head>\n${cspMeta}\n</head>\n${beforeHtml}${afterHtml}`;
 }
 
 export function validateGeneratedAppPayload(value: unknown): GeneratedAppPayload {

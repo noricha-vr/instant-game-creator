@@ -26,6 +26,8 @@ injectCsp で CSP meta を強制注入
 /g/:slug で sandbox iframe 実行
 ```
 
+旧`.local-data/games.json`は読み取り専用で参照し、`canvas-worker-sim-v1`の共有URLを従来のWorkerランナーで表示します。新しいHTMLアプリへ暗黙変換したり、旧ファイルを書き換えたりしません。
+
 ## 生成物の契約
 
 ```ts
@@ -114,10 +116,10 @@ type Response = {
 
 ### CSP 注入
 
-保存前に既存の CSP meta を除去し、次の CSP を注入します。
+保存前と共有画面の読取時に既存の CSP meta を除去し、次の CSP をDOCTYPEと`<html>`の直後へ注入します。親documentにも`frame-src 'none'`を設定し、srcdoc内の自己ナビゲーションがネットワークへ出ないようにします。
 
 ```text
-default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'
+default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'
 ```
 
 ### 検証
@@ -133,5 +135,5 @@ default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-s
 
 - HTMLの意味的な完成度は検証できない
 - 外部通信禁止は静的検査とCSPに依存する
-- iframe内の自動ブラウザQAは未実装
+- iframeの通信遮断・操作と旧Worker描画の回帰テストはローカルブラウザを必要とする
 - 生成HTMLのサイズが大きいほどローカルJSONが肥大化する

@@ -1,9 +1,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { env } from '$env/dynamic/private';
-import type { AppRecord, GalleryApp } from '$lib/types';
+import type { AppRecord, GalleryApp, SharedRecord } from '$lib/types';
+import { readLegacyGame } from './legacyStorage';
 
 const filePath = resolve(env.LOCAL_APPS_FILE || '.local-data/apps.json');
+const legacyFilePath = resolve(env.LOCAL_GAMES_FILE || '.local-data/games.json');
 
 type AppStore = {
   apps: AppRecord[];
@@ -54,6 +56,11 @@ export async function listApps(limit = 24): Promise<GalleryApp[]> {
 export async function getApp(idOrSlug: string): Promise<AppRecord | null> {
   const store = await readStore();
   return store.apps.find((app) => app.id === idOrSlug || app.slug === idOrSlug) ?? null;
+}
+
+/** Find a new app first, then fall back to the read-only legacy game store. */
+export async function getSharedRecord(idOrSlug: string): Promise<SharedRecord | null> {
+  return (await getApp(idOrSlug)) ?? readLegacyGame(legacyFilePath, idOrSlug);
 }
 
 export function createAppId(): string {
