@@ -1,10 +1,14 @@
 import { error } from '@sveltejs/kit';
-import { getGame } from '$lib/server/storage';
+import { getSharedRecord } from '$lib/server/storage';
+import { injectCsp } from '$lib/server/validateGeneratedHtml';
 
 export const load = async ({ params }) => {
-  const game = await getGame(params.id);
-  if (!game) {
-    throw error(404, 'simulation not found');
+  const record = await getSharedRecord(params.id);
+  if (!record) {
+    throw error(404, 'app not found');
   }
-  return { game };
+  if (record.engine === 'html-v1') {
+    return { app: { ...record, html: injectCsp(record.html) } };
+  }
+  return { app: record };
 };

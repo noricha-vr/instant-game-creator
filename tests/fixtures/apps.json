@@ -1,0 +1,38 @@
+{
+  "apps": [
+    {
+      "id": "a_security",
+      "slug": "security-test",
+      "title": "保存済みアプリ",
+      "summary": "保存済みHTMLのCSP回帰確認用",
+      "howToUse": ["カウンターを押す"],
+      "html": "<!doctype html><html lang=\"ja\" dir=\"rtl\" data-note=\">\"><head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src *; script-src 'unsafe-inline'; style-src 'unsafe-inline'\"><style>body{font-family:sans-serif}#counter{color:rgb(1, 2, 3);padding:12px}</style></head><body><!-- <html data-fake> --><script>new Image().src='/network-sink?early=1'</script><button id=\"counter\" onclick=\"this.textContent=String(Number(this.textContent)+1)\">0</button><button id=\"navigate\" onclick=\"location.href='/network-sink?nav=1'\">移動</button></body></html>",
+      "adaptation": null,
+      "idea": "保存済みアプリ",
+      "direction": null,
+      "instruction": "",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "updatedAt": "2026-09-01T00:00:00.000Z",
+      "attempts": 1,
+      "engine": "html-v1",
+      "sharePath": "/g/security-test"
+    },
+    {
+      "id": "a_no_head",
+      "slug": "no-head-test",
+      "title": "headなし保存アプリ",
+      "summary": "headなしHTMLのCSP回帰確認用",
+      "howToUse": ["ボタンを押す"],
+      "html": "<html lang=\"ja\"><body><!-- <html data-fake> --><script>new Image().src='/network-sink?no-head=1'</script><button id=\"no-head-counter\" onclick=\"this.textContent='1'\">0</button></body></html>",
+      "adaptation": null,
+      "idea": "headなし保存アプリ",
+      "direction": null,
+      "instruction": "",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "updatedAt": "2026-09-01T00:00:00.000Z",
+      "attempts": 1,
+      "engine": "html-v1",
+      "sharePath": "/g/no-head-test"
+    }
+  ]
+}

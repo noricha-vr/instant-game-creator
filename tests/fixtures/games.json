@@ -1,0 +1,21 @@
+{
+  "games": [
+    {
+      "id": "g_legacy",
+      "slug": "legacy-share",
+      "title": "旧シミュレーション",
+      "summary": "旧形式の共有URL回帰確認用",
+      "keyword": "四角",
+      "elements": [],
+      "controls": ["クリック"],
+      "workerScript": "self.onmessage = (event) => { if (event.data.type === 'start' || event.data.type === 'tick') { self.postMessage({ type: 'frame', background: '#123456', shapes: [{ type: 'rect', x: 10, y: 10, w: 40, h: 40, fill: '#abcdef' }], stats: { frames: 1 }, message: '互換表示中' }); } };",
+      "svelteComponent": "<p>動的コンパイルしない旧フィールド</p>",
+      "instruction": "",
+      "createdAt": "2026-08-01T00:00:00.000Z",
+      "updatedAt": "2026-08-01T00:00:00.000Z",
+      "attempts": 1,
+      "engine": "canvas-worker-sim-v1",
+      "sharePath": "/g/legacy-share"
+    }
+  ]
+}
