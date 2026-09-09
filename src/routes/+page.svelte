@@ -345,6 +345,7 @@
 
   textarea,
   input {
+    box-sizing: border-box;
     width: 100%;
     border: 1px solid #c9c1b2;
     border-radius: 8px;
