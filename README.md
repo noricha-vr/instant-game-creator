@@ -79,7 +79,7 @@ LLM が返す成果物を `title`, `summary`, `howToUse`, `html` の4キーに�
 
 ### 3. 保存前に CSP を強制注入
 
-`injectCsp()` は既存の CSP meta を除去してから、以下の CSP をDOCTYPEと`<html>`の直後へ注入します。保存済みHTMLにも共有画面の読取時に再適用し、親documentは`frame-src 'none'`でiframeのネットワーク遷移を遮断します。
+`injectCsp()` は信頼側のDOCTYPEとCSP専用`<head>`を生成HTML全体より前へ追加します。既存のCSPも残るため複数policyとして制限が合成されます。保存済みHTMLにも共有画面の読取時に再適用し、親documentは`frame-src 'none'`でiframeのネットワーク遷移を遮断します。
 
 ```text
 default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'

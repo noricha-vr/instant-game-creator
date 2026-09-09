@@ -90,12 +90,37 @@ try {
 
   const frame = page.frameLocator('iframe');
   const counter = frame.locator('#counter');
+  const documentState = await frame.locator('html').evaluate((html) => ({
+    compatMode: document.compatMode,
+    lang: html.lang,
+    dir: html.dir,
+    note: html.getAttribute('data-note'),
+    policies: document.querySelectorAll('meta[http-equiv="Content-Security-Policy" i]').length,
+    color: getComputedStyle(document.querySelector('#counter')).color
+  }));
+  const expectedDocumentState = {
+    compatMode: 'CSS1Compat',
+    lang: 'ja',
+    dir: 'rtl',
+    note: '>',
+    policies: 2,
+    color: 'rgb(1, 2, 3)'
+  };
+  if (JSON.stringify(documentState) !== JSON.stringify(expectedDocumentState)) {
+    throw new Error(`generated document contract changed: ${JSON.stringify(documentState)}`);
+  }
   await counter.click();
   if ((await counter.textContent()) !== '1') throw new Error('sandboxed app interaction stopped working');
   await frame.locator('#navigate').click();
   await page.waitForTimeout(150);
   if (sinkRequests.length !== 0) throw new Error(`generated app escaped to network: ${sinkRequests.join(', ')}`);
   if (page.url() !== `${baseUrl}/g/security-test`) throw new Error(`top page navigated away: ${page.url()}`);
+
+  await page.goto(`${baseUrl}/g/no-head-test`);
+  const noHeadCounter = page.frameLocator('iframe').locator('#no-head-counter');
+  await noHeadCounter.click();
+  if ((await noHeadCounter.textContent()) !== '1') throw new Error('headless stored app interaction stopped working');
+  if (sinkRequests.length !== 0) throw new Error(`headless stored app escaped to network: ${sinkRequests.join(', ')}`);
 
   await page.goto(`${baseUrl}/g/legacy-share`);
   await page.getByText('互換表示中').waitFor();

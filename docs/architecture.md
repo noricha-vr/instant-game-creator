@@ -116,7 +116,7 @@ type Response = {
 
 ### CSP 注入
 
-保存前と共有画面の読取時に既存の CSP meta を除去し、次の CSP をDOCTYPEと`<html>`の直後へ注入します。親documentにも`frame-src 'none'`を設定し、srcdoc内の自己ナビゲーションがネットワークへ出ないようにします。
+保存前と共有画面の読取時に、信頼側のDOCTYPEと次のCSPを持つ`<head>`を生成HTML全体より前へ追加します。既存CSPは別policyとして残し、制限を緩めません。親documentにも`frame-src 'none'`を設定し、srcdoc内の自己ナビゲーションがネットワークへ出ないようにします。
 
 ```text
 default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'

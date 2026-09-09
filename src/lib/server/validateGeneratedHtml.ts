@@ -102,19 +102,8 @@ function asString(value: unknown, name: string, maxLength: number): string {
 }
 
 export function injectCsp(html: string): string {
-  const withoutExistingCsp = html.replace(
-    /<meta\b[^>]*http-equiv\s*=\s*["']?content-security-policy["']?[^>]*>/gi,
-    ''
-  );
   const cspMeta = `<meta http-equiv="Content-Security-Policy" content="${CSP_CONTENT}">`;
-  const htmlOpen = withoutExistingCsp.match(/<html\b[^>]*>/i);
-  if (!htmlOpen || htmlOpen.index === undefined) {
-    return `<!doctype html>\n<html>\n<head>\n${cspMeta}\n</head>\n${withoutExistingCsp}\n</html>`;
-  }
-
-  const beforeHtml = withoutExistingCsp.slice(0, htmlOpen.index).replace(/<!doctype\b[^>]*>/gi, '').trim();
-  const afterHtml = withoutExistingCsp.slice(htmlOpen.index + htmlOpen[0].length);
-  return `<!doctype html>\n${htmlOpen[0]}\n<head>\n${cspMeta}\n</head>\n${beforeHtml}${afterHtml}`;
+  return `<!doctype html>\n<head>\n${cspMeta}\n${html}`;
 }
 
 export function validateGeneratedAppPayload(value: unknown): GeneratedAppPayload {
